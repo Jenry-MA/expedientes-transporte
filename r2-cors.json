@@ -1,6 +1,9 @@
 [
   {
-    "AllowedOrigins": ["http://localhost:5173", "https://expedientes-transporte.TU-SUBDOMINIO.workers.dev"],
+    "AllowedOrigins": [
+      "https://expedientes-transporte.jenrymazariegos.workers.dev",
+      "http://localhost:5173"
+    ],
     "AllowedMethods": ["GET", "PUT"],
     "AllowedHeaders": ["Content-Type"],
     "MaxAgeSeconds": 3600

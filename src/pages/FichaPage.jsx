@@ -1,16 +1,17 @@
 import { useState } from 'react';
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { TIPOS } from '../lib/catalogo';
 import { estaEnUso, useDocumento } from '../lib/db';
 import { borrarArchivo } from '../lib/api';
 import EntidadForm from '../components/EntidadForm';
-import FotoManager from '../components/FotoManager';
+import Documentos from '../components/Documentos';
 
 export default function FichaPage() {
   const { tipo, id } = useParams();
   const navigate = useNavigate();
+  const recienCreado = useLocation().state?.recienCreado;
   const cfg = TIPOS[tipo];
   const nuevo = id === 'nuevo';
   const { data, cargando, error } = useDocumento(tipo, cfg && !nuevo ? id : null);
@@ -24,7 +25,7 @@ export default function FichaPage() {
         setMsg('No se puede borrar: aparece en al menos una operación.');
         return;
       }
-      if (!confirm(`¿Borrar ${cfg.singular.toLowerCase()} «${cfg.resumen(data)}» y sus fotos? No se puede deshacer.`)) return;
+      if (!confirm(`¿Borrar ${cfg.singular.toLowerCase()} «${cfg.resumen(data)}» y sus documentos? No se puede deshacer.`)) return;
       await deleteDoc(doc(db, tipo, id));
       await Promise.allSettled((data.fotos || []).map((f) => borrarArchivo(f.key)));
       navigate(`/catalogo/${tipo}`, { replace: true });
@@ -51,14 +52,15 @@ export default function FichaPage() {
               tipo={tipo}
               id={nuevo ? null : id}
               inicial={data || {}}
-              onGuardado={(nid) => nuevo && navigate(`/catalogo/${tipo}/${nid}`, { replace: true })}
+              onGuardado={(nid) => nuevo && navigate(`/catalogo/${tipo}/${nid}`, { replace: true, state: { recienCreado: true } })}
             />
           </section>
           {nuevo ? (
-            <p className="tenue">Guarda primero para poder agregar fotos.</p>
+            <p className="tenue">Guarda primero; luego se piden los documentos (licencia, DPI, tarjeta…).</p>
           ) : (
             <>
-              <FotoManager tipo={tipo} id={id} fotos={data.fotos || []} />
+              {recienCreado && <p className="aviso ok-fondo">Guardado. Ahora sube sus documentos: imagen o PDF.</p>}
+              <Documentos tipo={tipo} id={id} docs={data.fotos || []} />
               {msg && <p className="aviso error">{msg}</p>}
               <button className="peligro" onClick={eliminar}>Borrar {cfg.singular.toLowerCase()}</button>
             </>

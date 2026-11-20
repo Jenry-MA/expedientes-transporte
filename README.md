@@ -48,8 +48,10 @@ r2-cors.json                   política CORS del bucket
 1. Crear bucket (este proyecto usa `transcadelga`; si es otro, cambiar `bucket_name` en `wrangler.jsonc`). Dejarlo **privado** (sin dominio público ni r2.dev).
 2. **R2 → Manage API tokens → Create API token:** permiso *Object Read & Write*, limitado a ese bucket.
    Guardar Access Key ID, Secret Access Key y el Account ID **fuera del chat** (gestor de contraseñas).
-3. **Bucket → Settings → CORS policy:** pegar [`r2-cors.json`](r2-cors.json) cambiando `TU-SUBDOMINIO` por el
-   dominio real del Worker (`https://expedientes-transporte.TU-SUBDOMINIO.workers.dev`).
+3. **Bucket → Settings → CORS policy → Add CORS policy:** pegar [`r2-cors.json`](r2-cors.json)
+   (ya trae `https://expedientes-transporte.jenrymazariegos.workers.dev` y `http://localhost:5173`).
+   Si cambia el dominio de la página, hay que agregarlo ahí.
+4. Para confirmar que todo funciona: en la app, **Usuarios → Probar almacenamiento** (solo admin).
 
 ## 3. Cloudflare Worker
 
@@ -110,8 +112,14 @@ Abrir <http://localhost:5173>. Vite redirige `/api` al `wrangler dev` del puerto
 
 ## Cómo funciona
 
-- **Fotos:** se comprimen en el navegador (lado mayor 1600 px, JPEG 0.8), se suben con link firmado a
-  `pilotos|cabezales|tcs/{id}/{fotoId}.jpg` y Firestore guarda `{ key, etiqueta, subidaEn }` en `fotos[]`.
+- **Documentos:** cada piloto / cabezal / TC tiene una casilla por etiqueta (Licencia, DPI, Tarjeta de circulación…)
+  más «Otros documentos». Cada casilla acepta **imagen o PDF**:
+  - Imagen: se abre la pantalla de recorte (girar, recortar o usar completa); luego se comprime
+    (lado mayor 1600 px, JPEG 0.8) y se sube a `pilotos|cabezales|tcs/{id}/{docId}.jpg`.
+  - PDF: hasta 15 MB, sin contraseña; se sube tal cual a `.../{docId}.pdf`.
+  - Firestore guarda `{ key, etiqueta, tipo, paginas?, nombre?, subidaEn }` en `fotos[]`.
+- **Expediente:** las imágenes van en la página de la unidad; los PDF se unen completos justo después,
+  con un rótulo arriba («Unidad 3 · Piloto — Licencia») y la numeración de páginas de todo el documento.
 - **Placas:** se guardan en mayúsculas y se comparan sin espacios ni guiones (`placaNorm`) para evitar duplicados.
 - **Unidades:** número consecutivo por operación (transacción sobre `operaciones.ultimoNumero`). Si una pieza ya está
   en otra unidad del mismo barco se avisa antes de guardar.

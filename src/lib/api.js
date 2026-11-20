@@ -14,12 +14,80 @@ async function llamar(ruta, body) {
   return data;
 }
 
+const AVISO_CORS = () =>
+  `El navegador no pudo conectarse con R2. Revisa la política CORS del bucket: debe permitir ${window.location.origin}`;
+
+/** Extrae el <Code> del XML de error de R2 (por ejemplo SignatureDoesNotMatch). */
+async function errorR2(res, accion) {
+  const texto = await res.text().catch(() => '');
+  const codigo = texto.match(/<Code>([^<]+)<\/Code>/)?.[1];
+  const pista = {
+    SignatureDoesNotMatch: 'las llaves R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY no coinciden',
+    InvalidAccessKeyId: 'R2_ACCESS_KEY_ID no existe o el token fue borrado',
+    AccessDenied: 'el token de R2 no tiene permiso sobre este bucket',
+    NoSuchBucket: 'el bucket de R2_BUCKET no existe',
+    NoSuchKey: 'el archivo no existe en R2',
+  }[codigo];
+  return new Error(`R2 rechazó ${accion} (${res.status}${codigo ? ` ${codigo}` : ''})${pista ? `: ${pista}` : ''}`);
+}
+
 /** Pide un link firmado y sube el archivo directo a R2. */
 export async function subirArchivo(key, blob, contentType) {
   const { url } = await llamar('upload-url', { key });
-  const res = await fetch(url, { method: 'PUT', body: blob, headers: { 'Content-Type': contentType } });
-  if (!res.ok) throw new Error(`No se pudo subir el archivo (${res.status})`);
+  let res;
+  try {
+    res = await fetch(url, { method: 'PUT', body: blob, headers: { 'Content-Type': contentType } });
+  } catch {
+    throw new Error(AVISO_CORS());
+  }
+  if (!res.ok) throw await errorR2(res, 'la subida');
   cache.delete(key);
+}
+
+/** Descarga un archivo privado de R2 (para armar los PDF). */
+export async function descargar(key) {
+  const url = await urlDeVista(key);
+  let res;
+  try {
+    res = await fetch(url);
+  } catch {
+    throw new Error(AVISO_CORS());
+  }
+  if (!res.ok) throw await errorR2(res, 'la descarga');
+  return res.blob();
+}
+
+/**
+ * Prueba de punta a punta: Worker -> link firmado -> subir a R2 -> leer -> borrar.
+ * `paso(nombre, estado, detalle)` informa el avance.
+ */
+export async function probarAlmacenamiento(paso) {
+  const key = `pilotos/_prueba/${crypto.randomUUID().replace(/-/g, '')}.jpg`;
+  const canvas = document.createElement('canvas');
+  canvas.width = 8;
+  canvas.height = 8;
+  canvas.getContext('2d').fillRect(0, 0, 8, 8);
+  const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.8));
+
+  const pasos = [
+    ['Subir un archivo de prueba a R2', () => subirArchivo(key, blob, 'image/jpeg')],
+    ['Leerlo de vuelta desde R2', async () => {
+      const b = await descargar(key);
+      if (b.size !== blob.size) throw new Error(`Llegó un archivo distinto (${b.size} de ${blob.size} bytes)`);
+    }],
+    ['Borrarlo', () => borrarArchivo(key)],
+  ];
+  for (const [nombre, fn] of pasos) {
+    paso(nombre, 'corriendo');
+    try {
+      await fn();
+      paso(nombre, 'ok');
+    } catch (e) {
+      paso(nombre, 'error', e.message);
+      return false;
+    }
+  }
+  return true;
 }
 
 export async function borrarArchivo(key) {

@@ -21,12 +21,12 @@ async function viewUrl(request, env) {
   return json({ urls });
 }
 
-// POST { key } -> { ok: true }  (solo fotos; los PDF de expedientes no se borran desde la app)
+// POST { key } -> { ok: true }  (solo documentos del catálogo; los expedientes no se borran desde la app)
 async function borrarFoto(request, env, user) {
   const { key } = await leerJson(request);
-  validarKey(key, { soloFotos: true });
+  validarKey(key, { soloCatalogo: true });
   await borrar(env, key);
-  console.log(`Foto borrada por ${user.email}: ${key}`);
+  console.log(`Documento borrado por ${user.email}: ${key}`);
   return json({ ok: true });
 }
 
@@ -49,9 +49,9 @@ export default {
       const user = await verificarUsuario(request, env);
       return await handler(request, env, user);
     } catch (e) {
-      const status = e.status || 500;
-      if (status === 500) console.error(e);
-      return json({ error: status === 500 ? 'Error interno del servidor' : e.message }, status);
+      // Los HttpError traen un mensaje pensado para el usuario; los demás se ocultan.
+      if (!e.status || e.status >= 500) console.error(e);
+      return json({ error: e.status ? e.message : 'Error interno del servidor' }, e.status || 500);
     }
   },
 };

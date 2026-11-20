@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { deleteDoc, doc, serverTimestamp, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useColeccion } from '../lib/db';
+import PruebaAlmacenamiento from '../components/PruebaAlmacenamiento';
 
 const fecha = (ts) => (ts?.toDate ? ts.toDate().toLocaleDateString('es-GT') : '');
 
@@ -105,6 +106,8 @@ export default function UsuariosPage({ yo }) {
           })}
         </ul>
       </section>
+
+      <PruebaAlmacenamiento />
 
       {rechazadas.length > 0 && (
         <section className="tarjeta">

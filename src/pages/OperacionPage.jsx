@@ -53,6 +53,9 @@ export default function OperacionPage() {
     tarea(`Generando PDF de la unidad ${a.numero}…`, async () => {
       const p = piezas(a);
       if (!p.piloto || !p.cabezal || !p.tc) throw new Error(`La unidad ${a.numero} necesita piloto, cabezal y TC para cerrarse`);
+      const sinDocs = [['piloto', p.piloto], ['cabezal', p.cabezal], ['TC', p.tc]]
+        .filter(([, x]) => !(x.fotos || []).length).map(([n]) => n);
+      if (sinDocs.length && !confirm(`El ${sinDocs.join(', ')} no tiene documentos. ¿Cerrar la unidad de todas formas?`)) return;
       const blob = await pdfUnidad(op, a, p);
       const key = `expedientes/${op.id}/unidad-${a.numero}.pdf`;
       await subirArchivo(key, blob, 'application/pdf');

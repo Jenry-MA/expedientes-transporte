@@ -15,7 +15,7 @@ export async function verificarUsuario(request, env) {
   if (!m) throw new HttpError(401, 'Falta el token de sesión');
   const token = m[1];
   const projectId = env.FIREBASE_PROJECT_ID;
-  if (!projectId) throw new Error('FIREBASE_PROJECT_ID no está configurado');
+  if (!projectId) throw new HttpError(500, 'Falta la variable FIREBASE_PROJECT_ID en el Worker');
 
   let payload;
   try {

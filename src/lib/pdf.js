@@ -1,6 +1,11 @@
 import { jsPDF } from 'jspdf';
-import { urlDeVista } from './api';
+import { descargar } from './api';
 import { fmtFecha } from './catalogo';
+
+// Cómo se arma el expediente:
+// 1. jsPDF dibuja las páginas propias (resumen, datos de cada unidad y sus imágenes).
+// 2. pdf-lib une ese PDF con los PDF que se subieron al catálogo (licencias, tarjetas…),
+//    cada uno justo después de las páginas de su unidad, y numera todas las páginas.
 
 const EMPRESA = import.meta.env.VITE_EMPRESA_NOMBRE || '';
 const M = 15; // margen (mm)
@@ -8,20 +13,30 @@ const ANCHO = 210;
 const ALTO = 297;
 const UTIL = ANCHO - 2 * M;
 const LIMITE_Y = ALTO - M - 6; // deja espacio al pie de página
+const MM = 72 / 25.4; // puntos por mm (pdf-lib usa puntos)
+
+const esPdf = (d) => d.tipo === 'pdf' || /\.pdf$/.test(d.key);
 
 async function cargarImagen(key) {
   try {
-    const url = await urlDeVista(key);
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const blob = await res.blob();
+    const blob = await descargar(key);
     const bmp = await createImageBitmap(blob);
     const dims = { w: bmp.width, h: bmp.height };
     bmp.close?.();
-    const data = new Uint8Array(await blob.arrayBuffer());
-    return { data, ...dims };
+    return { data: new Uint8Array(await blob.arrayBuffer()), ...dims };
   } catch (e) {
     console.warn('No se pudo cargar la imagen', key, e);
+    return null;
+  }
+}
+
+async function cargarPdf(key) {
+  try {
+    const { PDFDocument } = await import('pdf-lib');
+    const blob = await descargar(key);
+    return await PDFDocument.load(await blob.arrayBuffer());
+  } catch (e) {
+    console.warn('No se pudo cargar el PDF', key, e);
     return null;
   }
 }
@@ -76,6 +91,7 @@ const datosVehiculo = (v) => v
   ? [['Placa', v.placa], ['Transportista', v.transportista], ...(v.notas ? [['Notas', v.notas]] : [])]
   : [['', 'Sin asignar']];
 
+/** Dibuja la unidad y devuelve los PDF adjuntos ya cargados, para unirlos después. */
 async function paginasUnidad(doc, op, a, { piloto, cabezal, tc }) {
   const titulo = `Unidad ${a.numero}`;
   let y = encabezado(doc, op, titulo);
@@ -90,30 +106,36 @@ async function paginasUnidad(doc, op, a, { piloto, cabezal, tc }) {
   doc.line(M, y, ANCHO - M, y);
   y += 7;
 
-  const fotos = [
+  const todos = [
     ...(piloto?.fotos || []).map((f) => ({ ...f, grupo: 'Piloto' })),
     ...(cabezal?.fotos || []).map((f) => ({ ...f, grupo: 'Cabezal' })),
     ...(tc?.fotos || []).map((f) => ({ ...f, grupo: 'TC' })),
   ];
+  const imagenes = todos.filter((d) => !esPdf(d));
+  const pdfs = todos.filter(esPdf);
+  const [imgs, docsPdf] = await Promise.all([
+    Promise.all(imagenes.map((f) => cargarImagen(f.key))),
+    Promise.all(pdfs.map((f) => cargarPdf(f.key))),
+  ]);
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
-  doc.text('Documentos y fotos', M, y);
+  doc.text('Documentos', M, y);
   y += 4;
-  if (!fotos.length) {
+  if (!todos.length) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    doc.text('Sin fotos registradas.', M, y + 4);
-    return;
+    doc.text('Sin documentos registrados.', M, y + 4);
+    return [];
   }
 
-  const imgs = await Promise.all(fotos.map((f) => cargarImagen(f.key)));
   const sep = 6;
   const celdaW = (UTIL - sep) / 2;
   const celdaH = 72;
   const rotuloH = 5;
   let col = 0;
 
-  fotos.forEach((f, i) => {
+  imagenes.forEach((f, i) => {
     if (col === 0 && y + rotuloH + celdaH > LIMITE_Y) {
       doc.addPage();
       y = encabezado(doc, op, `${titulo} (cont.)`);
@@ -146,6 +168,30 @@ async function paginasUnidad(doc, op, a, { piloto, cabezal, tc }) {
       y += rotuloH + celdaH + 6;
     }
   });
+  if (col === 1) y += rotuloH + celdaH + 6;
+
+  // Lista de los PDF que se agregan después de estas páginas.
+  if (pdfs.length) {
+    if (y + 8 + pdfs.length * 4.5 > LIMITE_Y) {
+      doc.addPage();
+      y = encabezado(doc, op, `${titulo} (cont.)`);
+    }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('Documentos PDF (en las páginas siguientes):', M, y + 2);
+    y += 7;
+    doc.setFont('helvetica', 'normal');
+    pdfs.forEach((f, i) => {
+      const p = docsPdf[i];
+      const detalle = p ? `${p.getPageCount()} pág.` : 'no se pudo cargar';
+      doc.text(`• ${f.grupo} — ${f.etiqueta} (${detalle})`, M + 2, y);
+      y += 4.5;
+    });
+  }
+
+  return pdfs
+    .map((f, i) => ({ pdf: docsPdf[i], rotulo: `Unidad ${a.numero} · ${f.grupo} — ${f.etiqueta}` }))
+    .filter((x) => x.pdf);
 }
 
 function resumen(doc, op, asignaciones, resolver) {
@@ -204,38 +250,73 @@ function resumen(doc, op, asignaciones, resolver) {
   doc.text(`Total de unidades: ${asignaciones.length}`, M, y + 7);
 }
 
-function pies(doc) {
-  const n = doc.getNumberOfPages();
-  const ahora = new Date().toLocaleString('es-GT');
-  for (let i = 1; i <= n; i++) {
-    doc.setPage(i);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(120);
-    doc.text(`Generado ${ahora}`, M, ALTO - 8);
-    doc.text(`Página ${i} de ${n}`, ANCHO - M, ALTO - 8, { align: 'right' });
+// Las fuentes estándar de PDF solo tienen caracteres latinos; lo demás se cambia por "?".
+const latino = (s) => String(s).replace(/[^\x20-\x7E -ÿ–—•]/g, '?');
+
+/**
+ * Une las páginas de jsPDF con los PDF adjuntos. `tramos` = [{ hasta, adjuntos }]:
+ * después de la página `hasta` del PDF base se insertan los adjuntos de ese tramo.
+ */
+async function ensamblar(base, tramos) {
+  const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
+  const propio = await PDFDocument.load(base.output('arraybuffer'));
+  const final = await PDFDocument.create();
+  const rotulos = new Map(); // índice de página -> rótulo (solo páginas adjuntas)
+
+  let desde = 0;
+  for (const tramo of tramos) {
+    const indices = Array.from({ length: tramo.hasta - desde }, (_, i) => desde + i);
+    (await final.copyPages(propio, indices)).forEach((p) => final.addPage(p));
+    desde = tramo.hasta;
+    for (const adj of tramo.adjuntos) {
+      for (const p of await final.copyPages(adj.pdf, adj.pdf.getPageIndices())) {
+        rotulos.set(final.getPageCount(), adj.rotulo);
+        final.addPage(p);
+      }
+    }
   }
-  doc.setTextColor(0);
+
+  const fuente = await final.embedFont(StandardFonts.Helvetica);
+  const total = final.getPageCount();
+  const ahora = latino(new Date().toLocaleString('es-GT'));
+  const gris = rgb(0.45, 0.45, 0.45);
+  const texto = (page, t, x, y) => {
+    const ancho = fuente.widthOfTextAtSize(t, 8);
+    page.drawRectangle({ x: x - 2, y: y - 2.5, width: ancho + 4, height: 10, color: rgb(1, 1, 1), opacity: 0.85 });
+    page.drawText(t, { x, y, size: 8, font: fuente, color: gris });
+    return ancho;
+  };
+
+  final.getPages().forEach((page, i) => {
+    const { width, height } = page.getSize();
+    const piso = 8 * MM;
+    texto(page, `Generado ${ahora}`, M * MM, piso);
+    const num = `Página ${i + 1} de ${total}`;
+    texto(page, num, width - M * MM - fuente.widthOfTextAtSize(num, 8), piso);
+    if (rotulos.has(i)) texto(page, latino(rotulos.get(i)), M * MM, height - 8 * MM);
+  });
+
+  return new Blob([await final.save()], { type: 'application/pdf' });
 }
 
 const nuevoDoc = () => new jsPDF({ unit: 'mm', format: 'a4', compress: true });
 
-/** PDF de una unidad: datos + fotos de piloto, cabezal y TC. */
+/** PDF de una unidad: datos, imágenes y los PDF adjuntos de piloto, cabezal y TC. */
 export async function pdfUnidad(op, asignacion, piezas) {
   const doc = nuevoDoc();
-  await paginasUnidad(doc, op, asignacion, piezas);
-  pies(doc);
-  return doc.output('blob');
+  const adjuntos = await paginasUnidad(doc, op, asignacion, piezas);
+  return ensamblar(doc, [{ hasta: doc.getNumberOfPages(), adjuntos }]);
 }
 
-/** PDF de toda la operación: resumen + páginas de cada unidad. `resolver(a)` -> {piloto, cabezal, tc}. */
+/** PDF de toda la operación: resumen + cada unidad con sus adjuntos. `resolver(a)` -> {piloto, cabezal, tc}. */
 export async function pdfOperacion(op, asignaciones, resolver) {
   const doc = nuevoDoc();
   resumen(doc, op, asignaciones, resolver);
+  const tramos = [{ hasta: doc.getNumberOfPages(), adjuntos: [] }];
   for (const a of asignaciones) {
     doc.addPage();
-    await paginasUnidad(doc, op, a, resolver(a));
+    const adjuntos = await paginasUnidad(doc, op, a, resolver(a));
+    tramos.push({ hasta: doc.getNumberOfPages(), adjuntos });
   }
-  pies(doc);
-  return doc.output('blob');
+  return ensamblar(doc, tramos);
 }

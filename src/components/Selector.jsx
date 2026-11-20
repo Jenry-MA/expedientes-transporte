@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { TIPOS, filtrar } from '../lib/catalogo';
 import EntidadForm from './EntidadForm';
+import Documentos, { etiquetasDe } from './Documentos';
 
 /**
  * Elegir un piloto / cabezal / TC del catálogo, o registrarlo en el momento.
@@ -10,10 +11,13 @@ export default function Selector({ tipo, items, valorId, onChange, usadoEn, abie
   const cfg = TIPOS[tipo];
   const [q, setQ] = useState('');
   const [registrando, setRegistrando] = useState(false);
+  const [verDocs, setVerDocs] = useState(false);
   const actual = items?.find((i) => i.id === valorId);
   const avisoActual = valorId ? usadoEn(valorId) : [];
 
   if (!abierto) {
+    const docs = actual?.fotos || [];
+    const faltan = etiquetasDe(tipo).filter((e) => !docs.some((d) => d.etiqueta === e)).length;
     return (
       <div className={`pieza ${actual ? '' : 'vacia'}`}>
         <div className="pieza-tipo">{cfg.singular}</div>
@@ -30,7 +34,19 @@ export default function Selector({ tipo, items, valorId, onChange, usadoEn, abie
           )}
           {avisoActual.length > 0 && <span className="aviso">⚠ También en unidad {avisoActual.join(', ')}</span>}
         </div>
-        <button type="button" className="sec chico" onClick={onAbrir}>{valorId ? 'Cambiar' : 'Elegir'}</button>
+        <div className="acciones">
+          {actual && (
+            <button type="button" className={`chico ${faltan ? '' : 'sec'}`} onClick={() => setVerDocs(!verDocs)}>
+              {verDocs ? 'Ocultar documentos' : faltan ? `Documentos (faltan ${faltan})` : `Documentos (${docs.length}) ✓`}
+            </button>
+          )}
+          <button type="button" className="sec chico" onClick={onAbrir}>{valorId ? 'Cambiar' : 'Elegir'}</button>
+        </div>
+        {actual && verDocs && (
+          <div className="pieza-docs">
+            <Documentos tipo={tipo} id={actual.id} docs={docs} compacto />
+          </div>
+        )}
       </div>
     );
   }
@@ -46,7 +62,7 @@ export default function Selector({ tipo, items, valorId, onChange, usadoEn, abie
           tipo={tipo}
           compacto
           inicial={{ ...sugerido, [campoPrincipal]: q }}
-          onGuardado={(id) => { setRegistrando(false); setQ(''); onChange(id); }}
+          onGuardado={(id) => { setRegistrando(false); setQ(''); setVerDocs(true); onChange(id); }}
           onCancelar={() => setRegistrando(false)}
         />
       ) : (

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { TIPOS, filtrar } from '../lib/catalogo';
 import { useColeccion } from '../lib/db';
+import { etiquetasDe } from '../components/Documentos';
 
 export default function CatalogoPage() {
   const { tipo } = useParams();
@@ -39,7 +40,13 @@ export default function CatalogoPage() {
               <Link to={`/catalogo/${tipo}/${it.id}`}>
                 <b>{cfg.resumen(it)}</b>
                 <span className="tenue">{cfg.detalle(it)}</span>
-                <span className="insignia">{(it.fotos || []).length} fotos</span>
+                {(() => {
+                  const docs = it.fotos || [];
+                  const faltan = etiquetasDe(tipo).filter((e) => !docs.some((d) => d.etiqueta === e)).length;
+                  return faltan
+                    ? <span className="insignia falta">Faltan {faltan} doc.</span>
+                    : <span className="insignia ok">{docs.length} doc. ✓</span>;
+                })()}
               </Link>
             </li>
           ))}

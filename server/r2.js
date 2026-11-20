@@ -1,21 +1,22 @@
 import { AwsClient } from 'aws4fetch';
 import { HttpError } from './http.js';
 
-const FOTO_RE = /^(?:pilotos|cabezales|tcs)\/[A-Za-z0-9_-]{1,64}\/[A-Za-z0-9_-]{1,64}\.jpg$/;
-const PDF_RE = /^expedientes\/[A-Za-z0-9_-]{1,64}\/(?:unidad-\d{1,4}|operacion)\.pdf$/;
+// Documentos del catálogo: imagen (.jpg) o PDF subido por el usuario.
+const DOC_RE = /^(?:pilotos|cabezales|tcs)\/[A-Za-z0-9_-]{1,64}\/[A-Za-z0-9_-]{1,64}\.(?:jpg|pdf)$/;
+// Expedientes generados por la app.
+const EXP_RE = /^expedientes\/[A-Za-z0-9_-]{1,64}\/(?:unidad-\d{1,4}|operacion)\.pdf$/;
 
 /** Solo se aceptan las rutas del plan; nada de "..", barras extra ni otras carpetas. */
-export function validarKey(key, { soloFotos = false } = {}) {
+export function validarKey(key, { soloCatalogo = false } = {}) {
   if (typeof key !== 'string') throw new HttpError(400, 'Falta la ruta del archivo');
-  const ok = FOTO_RE.test(key) || (!soloFotos && PDF_RE.test(key));
+  const ok = DOC_RE.test(key) || (!soloCatalogo && EXP_RE.test(key));
   if (!ok) throw new HttpError(400, `Ruta no permitida: ${key}`);
   return key;
 }
 
 function cliente(env) {
-  if (!env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY || !env.R2_ACCOUNT_ID || !env.R2_BUCKET) {
-    throw new Error('Faltan variables de R2 en el Worker');
-  }
+  const faltan = ['R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_ACCOUNT_ID', 'R2_BUCKET'].filter((v) => !env[v]);
+  if (faltan.length) throw new HttpError(500, `Faltan variables en el Worker: ${faltan.join(', ')}`);
   return new AwsClient({
     accessKeyId: env.R2_ACCESS_KEY_ID,
     secretAccessKey: env.R2_SECRET_ACCESS_KEY,
@@ -43,5 +44,5 @@ export async function borrar(env, key) {
     return;
   }
   const res = await cliente(env).fetch(urlObjeto(env, key), { method: 'DELETE' });
-  if (!res.ok && res.status !== 404) throw new Error(`R2 respondió ${res.status} al borrar ${key}`);
+  if (!res.ok && res.status !== 404) throw new HttpError(502, `R2 respondió ${res.status} al borrar ${key}`);
 }
