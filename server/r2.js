@@ -14,7 +14,7 @@ export function validarKey(key, { soloFotos = false } = {}) {
 
 function cliente(env) {
   if (!env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY || !env.R2_ACCOUNT_ID || !env.R2_BUCKET) {
-    throw new Error('Faltan secretos de R2 en Cloudflare Pages');
+    throw new Error('Faltan variables de R2 en el Worker');
   }
   return new AwsClient({
     accessKeyId: env.R2_ACCESS_KEY_ID,

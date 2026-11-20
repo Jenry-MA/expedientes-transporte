@@ -1,6 +1,6 @@
 [
   {
-    "AllowedOrigins": ["http://localhost:5173", "https://TU-PROYECTO.pages.dev"],
+    "AllowedOrigins": ["http://localhost:5173", "https://expedientes-transporte.TU-SUBDOMINIO.workers.dev"],
     "AllowedMethods": ["GET", "PUT"],
     "AllowedHeaders": ["Content-Type"],
     "MaxAgeSeconds": 3600

@@ -1,4 +1,4 @@
-# Copiar a .dev.vars para `npm run dev:api`. En producción van como secretos de Cloudflare Pages.
+# Copiar a .dev.vars para `npm run dev:api`. En producción van en el Worker: Settings > Variables and Secrets.
 # NUNCA subir este archivo a GitHub.
 FIREBASE_PROJECT_ID=tu-proyecto
 R2_ACCOUNT_ID=

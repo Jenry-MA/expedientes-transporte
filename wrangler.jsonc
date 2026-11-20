@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Debe ser igual al nombre del Worker en el panel de Cloudflare.
+  "name": "expedientes-transporte",
+  "main": "worker/index.js",
+  "compatibility_date": "2025-01-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    // Rutas como /operaciones/abc devuelven index.html (React Router se encarga).
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  // Conserva las variables puestas en el panel al desplegar desde GitHub.
+  "keep_vars": true,
+  "observability": { "enabled": true }
+}
