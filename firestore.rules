@@ -1,0 +1,22 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Lista del equipo: un documento por usuario en equipo/{correo en minúsculas}.
+    // Se crean a mano en la consola de Firebase.
+    function esEquipo() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && exists(/databases/$(database)/documents/equipo/$(request.auth.token.email));
+    }
+
+    match /equipo/{email} {
+      allow read: if request.auth != null && request.auth.token.email == email;
+      allow write: if false;
+    }
+
+    match /{col}/{id} {
+      allow read, write: if col in ['pilotos', 'cabezales', 'tcs', 'operaciones', 'asignaciones']
+        && esEquipo();
+    }
+  }
+}

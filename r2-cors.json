@@ -1,0 +1,8 @@
+[
+  {
+    "AllowedOrigins": ["http://localhost:5173", "https://TU-PROYECTO.pages.dev"],
+    "AllowedMethods": ["GET", "PUT"],
+    "AllowedHeaders": ["Content-Type"],
+    "MaxAgeSeconds": 3600
+  }
+]

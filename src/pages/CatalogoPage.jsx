@@ -1,0 +1,51 @@
+import { useState } from 'react';
+import { Link, Navigate, useParams } from 'react-router-dom';
+import { TIPOS, filtrar } from '../lib/catalogo';
+import { useColeccion } from '../lib/db';
+
+export default function CatalogoPage() {
+  const { tipo } = useParams();
+  const cfg = TIPOS[tipo];
+  const { items, error } = useColeccion(cfg ? tipo : 'pilotos');
+  const [q, setQ] = useState('');
+  if (!cfg) return <Navigate to="/catalogo/pilotos" replace />;
+
+  const lista = filtrar(items, q, tipo);
+  const pista = tipo === 'pilotos' ? 'nombre, licencia, DPI o transportista' : 'placa o transportista';
+
+  return (
+    <>
+      <div className="encabezado">
+        <h2>{cfg.titulo}</h2>
+        <Link className="boton" to={`/catalogo/${tipo}/nuevo`}>+ Nuevo</Link>
+      </div>
+      <input
+        className="buscador"
+        type="search"
+        placeholder={`Buscar por ${pista}…`}
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        autoFocus
+      />
+      {error && <p className="aviso error">{error.message}</p>}
+      {items === null ? (
+        <p className="tenue">Cargando…</p>
+      ) : lista.length === 0 ? (
+        <p className="tenue">{q ? 'Sin resultados.' : 'Todavía no hay registros.'}</p>
+      ) : (
+        <ul className="lista">
+          {lista.map((it) => (
+            <li key={it.id}>
+              <Link to={`/catalogo/${tipo}/${it.id}`}>
+                <b>{cfg.resumen(it)}</b>
+                <span className="tenue">{cfg.detalle(it)}</span>
+                <span className="insignia">{(it.fotos || []).length} fotos</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="tenue pie">{lista.length} de {items?.length ?? 0}</p>
+    </>
+  );
+}
