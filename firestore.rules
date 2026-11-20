@@ -49,7 +49,7 @@ service cloud.firestore {
     }
 
     match /{col}/{id} {
-      allow read, write: if col in ['pilotos', 'cabezales', 'tcs', 'operaciones', 'asignaciones']
+      allow read, write: if col in ['pilotos', 'cabezales', 'tcs', 'transportes', 'operaciones', 'asignaciones']
         && esEquipo();
     }
   }

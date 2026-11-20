@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   addDoc, collection, doc, getDocs, limit, onSnapshot, query, runTransaction,
-  serverTimestamp, updateDoc, where,
+  serverTimestamp, setDoc, updateDoc, where,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { CAMPO_ASIG, TIPOS, compactar } from './catalogo';
@@ -50,7 +50,7 @@ export function useAsignaciones(operacionId) {
 }
 
 /** Crea o edita un piloto/cabezal/TC. Valida requeridos y placa repetida. Devuelve el id. */
-export async function guardarEntidad(tipo, id, valores) {
+export async function guardarEntidad(tipo, id, valores, { idNuevo = null, fotos = [] } = {}) {
   const cfg = TIPOS[tipo];
   const datos = {};
   for (const c of cfg.campos) {
@@ -70,9 +70,9 @@ export async function guardarEntidad(tipo, id, valores) {
     await updateDoc(doc(db, tipo, id), datos);
     return id;
   }
-  const ref = await addDoc(collection(db, tipo), {
-    ...datos, fotos: [], creadoEn: serverTimestamp(), creadoPor: quien(),
-  });
+  // idNuevo: id reservado en el formulario, donde ya se subieron los documentos a R2.
+  const ref = idNuevo ? doc(db, tipo, idNuevo) : doc(collection(db, tipo));
+  await setDoc(ref, { ...datos, fotos, creadoEn: serverTimestamp(), creadoPor: quien() });
   return ref.id;
 }
 

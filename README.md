@@ -112,7 +112,7 @@ Abrir <http://localhost:5173>. Vite redirige `/api` al `wrangler dev` del puerto
 
 ## Cómo funciona
 
-- **Documentos:** cada piloto / cabezal / TC tiene una casilla por etiqueta (Licencia, DPI, Tarjeta de circulación…)
+- **Documentos:** cada piloto (Licencia frente y reverso), cabezal y TC (Tarjeta de circulación y Calcomanía) tiene una casilla por etiqueta
   más «Otros documentos». Cada casilla acepta **imagen o PDF**:
   - Imagen: se abre la pantalla de recorte (girar, recortar o usar completa); luego se comprime
     (lado mayor 1600 px, JPEG 0.8) y se sube a `pilotos|cabezales|tcs/{id}/{docId}.jpg`.
@@ -120,11 +120,13 @@ Abrir <http://localhost:5173>. Vite redirige `/api` al `wrangler dev` del puerto
   - Firestore guarda `{ key, etiqueta, tipo, paginas?, nombre?, subidaEn }` en `fotos[]`.
 - **Expediente:** las imágenes van en la página de la unidad; los PDF se unen completos justo después,
   con un rótulo arriba («Unidad 3 · Piloto — Licencia») y la numeración de páginas de todo el documento.
+- **Transportes:** catálogo con solo el nombre (`transportes/{nombre normalizado}`). El campo Transportista de
+  pilotos, cabezales y TC autocompleta desde ahí y permite agregar uno nuevo sin salir del formulario.
+  Cambiar el nombre en el catálogo lo actualiza en todos los registros que lo usan.
 - **Placas:** se guardan en mayúsculas y se comparan sin espacios ni guiones (`placaNorm`) para evitar duplicados.
 - **Unidades:** número consecutivo por operación (transacción sobre `operaciones.ultimoNumero`). Si una pieza ya está
   en otra unidad del mismo barco se avisa antes de guardar.
-- **Cerrar unidad:** genera el PDF y lo guarda en `expedientes/{operacionId}/unidad-{n}.pdf`; queda congelado aunque
-  después cambien las fotos del catálogo. *Reabrir* permite cambiar piezas y volver a cerrar.
+- **PDF de unidad:** *Ver PDF* lo genera al momento con los datos y documentos actuales; no se guarda.
 - **PDF de operación:** resumen + una página (o más) por unidad, en `expedientes/{operacionId}/operacion.pdf`.
 - **Borrado:** no se puede borrar un piloto/cabezal/TC que aparezca en alguna operación.
 

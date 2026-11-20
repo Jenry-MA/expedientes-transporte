@@ -50,24 +50,6 @@ export default function OperacionPage() {
     }
   }
 
-  const cerrarUnidad = (a) =>
-    tarea(`Generando PDF de la unidad ${a.numero}…`, async () => {
-      const p = piezas(a);
-      if (!p.piloto || !p.cabezal || !p.tc) throw new Error(`La unidad ${a.numero} necesita piloto, cabezal y TC para cerrarse`);
-      const sinDocs = [['piloto', p.piloto], ['cabezal', p.cabezal], ['TC', p.tc]]
-        .filter(([, x]) => !(x.fotos || []).length).map(([n]) => n);
-      if (sinDocs.length && !confirm(`El ${sinDocs.join(', ')} no tiene documentos. ¿Cerrar la unidad de todas formas?`)) return;
-      const blob = await pdfUnidad(op, a, p);
-      const key = `expedientes/${op.id}/unidad-${a.numero}.pdf`;
-      await subirArchivo(key, blob, 'application/pdf');
-      await updateDoc(doc(db, 'asignaciones', a.id), { pdfKey: key, cerradaEn: serverTimestamp() });
-    });
-
-  const reabrir = (a) => {
-    if (!confirm(`¿Reabrir la unidad ${a.numero}? El PDF guardado se reemplazará cuando la vuelvas a cerrar.`)) return;
-    tarea('Reabriendo…', () => updateDoc(doc(db, 'asignaciones', a.id), { pdfKey: null, cerradaEn: null }));
-  };
-
   const quitar = (a) => {
     if (!confirm(`¿Quitar la unidad ${a.numero} de esta operación?`)) return;
     tarea('Quitando…', () => deleteDoc(doc(db, 'asignaciones', a.id)));
@@ -77,7 +59,7 @@ export default function OperacionPage() {
 
   const vistaPrevia = (a) => {
     const ventana = window.open('', '_blank');
-    tarea('Generando vista previa…', async () => {
+    tarea('Generando PDF…', async () => {
       try {
         const blob = a ? await pdfUnidad(op, a, piezas(a)) : await pdfOperacion(op, lista, piezas);
         abrirBlob(blob, ventana);
@@ -118,7 +100,6 @@ export default function OperacionPage() {
   };
 
   const campoOp = (name) => ({ value: editandoOp[name], onChange: (e) => setEditandoOp({ ...editandoOp, [name]: e.target.value }) });
-  const cerradas = lista.filter((a) => a.pdfKey).length;
 
   return (
     <>
@@ -143,7 +124,6 @@ export default function OperacionPage() {
             <h1>{op.barco}</h1>
             <p className="tenue">
               {fmtFecha(op.fecha)}, {plural(lista.length, 'unidad', 'unidades')}
-              {lista.length > 0 && `, ${cerradas === lista.length ? 'todas cerradas' : plural(cerradas, 'cerrada', 'cerradas')}`}
             </p>
             {op.notas && <p className="tenue">{op.notas}</p>}
           </div>
@@ -186,7 +166,6 @@ export default function OperacionPage() {
         <ol className="unidades">
           {lista.map((a) => {
             const p = piezas(a);
-            const cerrada = !!a.pdfKey;
             if (editando?.id === a.id) {
               return (
                 <li key={a.id}>
@@ -201,7 +180,7 @@ export default function OperacionPage() {
               );
             }
             return (
-              <li key={a.id} className={`unidad ${cerrada ? 'cerrada' : ''}`}>
+              <li key={a.id} className="unidad">
                 <div className="placa" aria-label={`Unidad ${a.numero}`}>{a.numero}</div>
                 <div className="unidad-datos">
                   <div className="dato">
@@ -218,21 +197,10 @@ export default function OperacionPage() {
                   </div>
                 </div>
                 <div className="unidad-lado">
-                  {cerrada ? <span className="insignia ok">Cerrada, PDF guardado</span> : <span className="insignia">Abierta</span>}
                   <div className="acciones fin">
-                    {cerrada ? (
-                      <>
-                        <button className="sec chico" disabled={!!ocupado} onClick={() => reabrir(a)}>Reabrir</button>
-                        <button className="chico" onClick={() => verPdf(a.pdfKey)}>Ver PDF</button>
-                      </>
-                    ) : (
-                      <>
-                        <button className="peligro chico" disabled={!!ocupado} onClick={() => quitar(a)}>Quitar</button>
-                        <button className="sec chico" disabled={!!editando} onClick={() => setEditando(a)}>Cambiar piezas</button>
-                        <button className="sec chico" disabled={!!ocupado} onClick={() => vistaPrevia(a)}>Vista previa</button>
-                        <button className="chico" disabled={!!ocupado} onClick={() => cerrarUnidad(a)}>Cerrar y guardar PDF</button>
-                      </>
-                    )}
+                    <button className="peligro chico" disabled={!!ocupado} onClick={() => quitar(a)}>Quitar</button>
+                    <button className="sec chico" disabled={!!editando} onClick={() => setEditando(a)}>Cambiar piezas</button>
+                    <button className="chico" disabled={!!ocupado} onClick={() => vistaPrevia(a)}>Ver PDF</button>
                   </div>
                 </div>
               </li>

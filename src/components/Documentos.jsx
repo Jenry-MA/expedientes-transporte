@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { arrayRemove, arrayUnion, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { TIPOS } from '../lib/catalogo';
@@ -50,6 +50,37 @@ function BotonArchivo({ texto, onElegir, deshabilitado, principal }) {
   );
 }
 
+const traeArchivos = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+
+/** Casilla que también recibe archivos arrastrados desde la computadora. */
+function Zona({ className, deshabilitado, onArchivos, children }) {
+  const [encima, setEncima] = useState(false);
+  const sobre = (e) => {
+    if (!traeArchivos(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = deshabilitado ? 'none' : 'copy';
+    if (!encima) setEncima(true);
+  };
+  return (
+    <div
+      className={`${className} ${encima ? 'encima' : ''}`}
+      onDragEnter={sobre}
+      onDragOver={sobre}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setEncima(false); }}
+      onDrop={(e) => {
+        if (!traeArchivos(e)) return;
+        e.preventDefault();
+        setEncima(false);
+        const files = [...e.dataTransfer.files];
+        if (!deshabilitado && files.length) onArchivos(files);
+      }}
+    >
+      {children}
+      {encima && <div className="zona-aviso" aria-hidden="true">Suelta aquí</div>}
+    </div>
+  );
+}
+
 function Archivo({ d, etiquetas, onBorrar, onEtiqueta, onError }) {
   const ver = () => abrirArchivo(d.key).catch((e) => onError(e.message));
   const opciones = etiquetas.includes(d.etiqueta) ? etiquetas : [d.etiqueta, ...etiquetas];
@@ -78,16 +109,37 @@ function Archivo({ d, etiquetas, onBorrar, onEtiqueta, onError }) {
  * Documentos de un piloto / cabezal / TC: una casilla por etiqueta (Licencia, DPI, Tarjeta…),
  * cada una acepta imagen (con recorte) o PDF. Todo se guarda en R2 y se usa en el expediente.
  */
-export default function Documentos({ tipo, id, docs = [], compacto = false }) {
+export default function Documentos({ tipo, id, docs = [], compacto = false, onCambiar, onOcupado }) {
   const etiquetas = etiquetasDe(tipo);
   const [cola, setCola] = useState([]); // imágenes esperando recorte: {n, file, etiqueta}
   const [progreso, setProgreso] = useState('');
   const [error, setError] = useState('');
   const [etiquetaOtro, setEtiquetaOtro] = useState('');
   const contador = useRef(0);
-  const ref = doc(db, tipo, id);
-
-  const agregar = (entrada) => updateDoc(ref, { fotos: arrayUnion({ ...entrada, subidaEn: new Date().toISOString() }) });
+  const trabajando = !!progreso || cola.length > 0;
+  useEffect(() => {
+    const evitar = (e) => { if (traeArchivos(e)) e.preventDefault(); };
+    window.addEventListener('dragover', evitar);
+    window.addEventListener('drop', evitar);
+    return () => { window.removeEventListener('dragover', evitar); window.removeEventListener('drop', evitar); };
+  }, []);
+  useEffect(() => { onOcupado?.(trabajando); }, [trabajando, onOcupado]);
+  // Con `onCambiar` (registro aún sin guardar) la lista vive en el formulario;
+  // sin él se guarda directo en Firestore. Los archivos van a R2 en ambos casos.
+  const ref = onCambiar ? null : doc(db, tipo, id);
+  const agregar = async (entrada) => {
+    const d = { ...entrada, subidaEn: new Date().toISOString() };
+    if (onCambiar) onCambiar((lista) => [...lista, d]);
+    else await updateDoc(ref, { fotos: arrayUnion(d) });
+  };
+  const quitar = async (d) => {
+    if (onCambiar) onCambiar((lista) => lista.filter((x) => x.key !== d.key));
+    else await updateDoc(ref, { fotos: arrayRemove(d) });
+  };
+  const reemplazar = async (nueva) => {
+    if (onCambiar) onCambiar(() => nueva);
+    else await updateDoc(ref, { fotos: nueva });
+  };
 
   async function elegir(files, etiqueta) {
     setError('');
@@ -133,7 +185,7 @@ export default function Documentos({ tipo, id, docs = [], compacto = false }) {
     setError('');
     try {
       // Primero se quita la referencia; si R2 falla solo queda un archivo huérfano privado.
-      await updateDoc(ref, { fotos: arrayRemove(d) });
+      await quitar(d);
       await borrarArchivo(d.key).catch((e) => console.warn('No se borró en R2:', e));
     } catch (e) {
       setError(e.message);
@@ -144,7 +196,7 @@ export default function Documentos({ tipo, id, docs = [], compacto = false }) {
     if (nueva === '__otra') nueva = (prompt('Nombre de la etiqueta', d.etiqueta) || '').trim();
     if (!nueva || nueva === d.etiqueta) return;
     try {
-      await updateDoc(ref, { fotos: docs.map((x) => (x.key === d.key ? { ...x, etiqueta: nueva } : x)) });
+      await reemplazar(docs.map((x) => (x.key === d.key ? { ...x, etiqueta: nueva } : x)));
     } catch (e) {
       setError(e.message);
     }
@@ -157,7 +209,7 @@ export default function Documentos({ tipo, id, docs = [], compacto = false }) {
   const props = { etiquetas, onBorrar: borrar, onEtiqueta: cambiarEtiqueta, onError: setError };
 
   return (
-    <section className={compacto ? 'documentos compacto' : 'tarjeta documentos'}>
+    <section className={compacto ? 'documentos compacto' : onCambiar ? 'documentos' : 'tarjeta documentos'}>
       {!compacto && (
         <div className="encabezado">
           <div>
@@ -174,7 +226,7 @@ export default function Documentos({ tipo, id, docs = [], compacto = false }) {
         {etiquetas.map((e) => {
           const archivos = docs.filter((d) => d.etiqueta === e);
           return (
-            <div key={e} className={`casilla ${archivos.length ? 'llena' : ''}`}>
+            <Zona key={e} className={`casilla ${archivos.length ? 'llena' : ''}`} deshabilitado={ocupado} onArchivos={(files) => elegir(files, e)}>
               <div className="casilla-titulo">
                 <b>{e}</b>
                 {!archivos.length && <span className="insignia falta">Falta</span>}
@@ -190,11 +242,16 @@ export default function Documentos({ tipo, id, docs = [], compacto = false }) {
                 deshabilitado={ocupado}
                 onElegir={(files) => elegir(files, e)}
               />
-            </div>
+              {!archivos.length && <span className="arrastra">o arrástralo aquí</span>}
+            </Zona>
           );
         })}
 
-        <div className="casilla otros">
+        <Zona
+          className="casilla otros"
+          deshabilitado={ocupado}
+          onArchivos={(files) => { elegir(files, etiquetaOtro.trim() || 'Otro'); setEtiquetaOtro(''); }}
+        >
           <div className="casilla-titulo"><b>Otros documentos</b></div>
           {otros.length > 0 && (
             <div className="casilla-archivos">
@@ -205,6 +262,7 @@ export default function Documentos({ tipo, id, docs = [], compacto = false }) {
             placeholder="Nombre (ej. Póliza, Permiso)"
             value={etiquetaOtro}
             onChange={(e) => setEtiquetaOtro(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
           />
           <BotonArchivo
             texto="Subir foto o PDF"
@@ -214,7 +272,7 @@ export default function Documentos({ tipo, id, docs = [], compacto = false }) {
               setEtiquetaOtro('');
             }}
           />
-        </div>
+        </Zona>
       </div>
 
       {actual && (

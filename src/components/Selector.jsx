@@ -62,7 +62,7 @@ export default function Selector({ tipo, items, valorId, onChange, usadoEn, abie
           tipo={tipo}
           compacto
           inicial={{ ...sugerido, [campoPrincipal]: q }}
-          onGuardado={(id) => { setRegistrando(false); setQ(''); setVerDocs(true); onChange(id); }}
+          onGuardado={(id) => { setRegistrando(false); setQ(''); onChange(id); }}
           onCancelar={() => setRegistrando(false)}
         />
       ) : (

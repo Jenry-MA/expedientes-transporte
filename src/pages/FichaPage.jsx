@@ -55,11 +55,9 @@ export default function FichaPage() {
               onGuardado={(nid) => nuevo && navigate(`/catalogo/${tipo}/${nid}`, { replace: true, state: { recienCreado: true } })}
             />
           </section>
-          {nuevo ? (
-            <p className="tenue">Guarda primero; luego se piden los documentos (licencia, DPI, tarjeta…).</p>
-          ) : (
+          {nuevo ? null : (
             <>
-              {recienCreado && <p className="aviso ok-fondo">Guardado. Ahora sube sus documentos: imagen o PDF.</p>}
+              {recienCreado && <p className="ok-fondo">{cfg.singular} registrado.</p>}
               <Documentos tipo={tipo} id={id} docs={data.fotos || []} />
               {msg && <p className="aviso error">{msg}</p>}
               <button className="peligro" onClick={eliminar}>Borrar {cfg.singular.toLowerCase()}</button>

@@ -1,7 +1,7 @@
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
-import { IconoBarco, IconoCabezal, IconoPiloto, IconoTC, IconoUsuarios, Logo } from './Iconos';
+import { IconoBarco, IconoCabezal, IconoPiloto, IconoTC, IconoTransporte, IconoUsuarios, Logo } from './Iconos';
 
 export default function Layout({ user, nombre, esAdmin }) {
   const enlaces = [
@@ -9,6 +9,7 @@ export default function Layout({ user, nombre, esAdmin }) {
     { to: '/catalogo/pilotos', texto: 'Pilotos', Icono: IconoPiloto },
     { to: '/catalogo/cabezales', texto: 'Cabezales', Icono: IconoCabezal },
     { to: '/catalogo/tcs', texto: 'TC', Icono: IconoTC },
+    { to: '/transportes', texto: 'Transportes', Icono: IconoTransporte },
     ...(esAdmin ? [{ to: '/usuarios', texto: 'Usuarios', Icono: IconoUsuarios }] : []),
   ];
   const salir = () => signOut(auth);

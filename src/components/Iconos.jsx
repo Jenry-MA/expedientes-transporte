@@ -16,6 +16,9 @@ export const IconoCabezal = () => (
 export const IconoTC = () => (
   <svg {...base}><rect x="2.5" y="6" width="19" height="9" rx="1" /><path d="M7 6v9M11.5 6v9M16 6v9" /><circle cx="6" cy="18" r="1.6" /><circle cx="18" cy="18" r="1.6" /></svg>
 );
+export const IconoTransporte = () => (
+  <svg {...base}><path d="M3 20V9l9-5 9 5v11" /><path d="M7 20v-7h10v7" /><path d="M7 16.5h10" /><path d="M2 20h20" /></svg>
+);
 export const IconoUsuarios = () => (
   <svg {...base}><circle cx="9" cy="8.5" r="3" /><path d="M3.5 19c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6" /><circle cx="17" cy="9.5" r="2.4" /><path d="M16 14.6c2.4 0 4 1.3 4.5 3.9" /></svg>
 );

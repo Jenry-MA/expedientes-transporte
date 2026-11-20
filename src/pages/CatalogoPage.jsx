@@ -5,9 +5,9 @@ import { useColeccion } from '../lib/db';
 import { etiquetasDe } from '../components/Documentos';
 
 const DESCRIPCION = {
-  pilotos: 'Datos y documentos de cada piloto: licencia, DPI y foto.',
-  cabezales: 'Cada cabezal con su placa, transportista y tarjeta de circulación.',
-  tcs: 'Cada TC (plataforma o chasis) con su placa y documentos.',
+  pilotos: 'Datos de cada piloto y su licencia, frente y reverso.',
+  cabezales: 'Cada cabezal con su placa, transportista, tarjeta de circulación y calcomanía.',
+  tcs: 'Cada TC con su placa, transportista, tarjeta de circulación y calcomanía.',
 };
 
 export default function CatalogoPage() {
