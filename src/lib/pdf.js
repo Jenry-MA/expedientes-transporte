@@ -129,46 +129,49 @@ async function paginasUnidad(doc, op, a, { piloto, cabezal, tc }) {
     return [];
   }
 
-  const sep = 6;
-  const celdaW = (UTIL - sep) / 2;
-  const celdaH = 72;
+  // Cada imagen ocupa todo el ancho útil de la hoja, con su proporción original.
+  // Si es tan alta que no cabe en una hoja, se reduce hasta caber (centrada).
   const rotuloH = 5;
-  let col = 0;
+  const sep = 7;
+  const topePagina = M + 20; // donde empieza el contenido debajo del encabezado
+  const altoMax = LIMITE_Y - topePagina - rotuloH;
 
   imagenes.forEach((f, i) => {
-    if (col === 0 && y + rotuloH + celdaH > LIMITE_Y) {
+    const img = imgs[i];
+    let w = UTIL;
+    let h = img ? (img.h * UTIL) / img.w : 40;
+    if (h > altoMax) {
+      w = (w * altoMax) / h;
+      h = altoMax;
+    }
+    const libre = LIMITE_Y - y - rotuloH;
+    if (h > libre && h * 0.9 <= libre) {
+      // Le falta poco para caber: se reduce un poco (máx. 10 %) en vez de gastar otra hoja.
+      w = (w * libre) / h;
+      h = libre;
+    } else if (h > libre && y > topePagina) {
       doc.addPage();
       y = encabezado(doc, op, `${titulo} (cont.)`);
     }
-    const x = M + col * (celdaW + sep);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
+    doc.setFontSize(9);
     doc.setTextColor(0);
-    doc.text(doc.splitTextToSize(`${f.grupo} — ${f.etiqueta}`, celdaW)[0], x, y + 3.5);
+    doc.text(doc.splitTextToSize(`${f.grupo} — ${f.etiqueta}`, UTIL)[0], M, y + 3.5);
 
-    const img = imgs[i];
     const top = y + rotuloH;
+    const x = M + (UTIL - w) / 2;
     if (img) {
-      const esc = Math.min(celdaW / img.w, celdaH / img.h);
-      const w = img.w * esc;
-      const h = img.h * esc;
-      doc.addImage(img.data, 'JPEG', x + (celdaW - w) / 2, top + (celdaH - h) / 2, w, h, undefined, 'FAST');
+      doc.addImage(img.data, 'JPEG', x, top, w, h, undefined, 'FAST');
     } else {
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(150);
-      doc.text('No se pudo cargar la imagen', x + celdaW / 2, top + celdaH / 2, { align: 'center' });
+      doc.text('No se pudo cargar la imagen', M + UTIL / 2, top + h / 2, { align: 'center' });
       doc.setTextColor(0);
     }
     doc.setDrawColor(200);
-    doc.rect(x, top, celdaW, celdaH);
-
-    col += 1;
-    if (col === 2) {
-      col = 0;
-      y += rotuloH + celdaH + 6;
-    }
+    doc.rect(x, top, w, h);
+    y = top + h + sep;
   });
-  if (col === 1) y += rotuloH + celdaH + 6;
 
   // Lista de los PDF que se agregan después de estas páginas.
   if (pdfs.length) {

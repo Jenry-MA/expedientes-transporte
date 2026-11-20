@@ -409,6 +409,10 @@ p.aviso:not(.error):not(.ok-fondo) {
 .casilla-archivos { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 0.5rem; }
 .casilla .boton { align-self: flex-start; }
 .casilla .arrastra { font-size: 0.8rem; color: var(--tinta-3); margin-top: -0.3rem; }
+/* Casilla seleccionada: lista para pegar con Ctrl+V */
+.casilla:focus { outline: none; }
+.casilla:focus-within { box-shadow: 0 0 0 3px rgba(242, 183, 5, 0.55); }
+.casilla:focus-within .arrastra { color: var(--tinta); font-weight: 600; }
 @media (hover: none) { .casilla .arrastra { display: none; } }
 /* Arrastrando un archivo encima */
 .casilla.encima, .casilla.encima .casilla-titulo { border-style: solid; border-color: var(--senal-borde); background: var(--senal-suave); }

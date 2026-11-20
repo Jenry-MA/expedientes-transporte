@@ -53,7 +53,18 @@ function BotonArchivo({ texto, onElegir, deshabilitado, principal }) {
 
 const traeArchivos = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
 
-/** Casilla que también recibe archivos arrastrados desde la computadora. */
+/** Archivos del portapapeles: un archivo copiado en el explorador o una captura de pantalla. */
+function archivosPegados(e) {
+  const datos = e.clipboardData;
+  if (!datos) return [];
+  if (datos.files?.length) return [...datos.files];
+  return [...(datos.items || [])].filter((it) => it.kind === 'file').map((it) => it.getAsFile()).filter(Boolean);
+}
+
+/**
+ * Casilla que también recibe archivos arrastrados desde la computadora
+ * o pegados con Ctrl+V (se hace clic en la casilla y se pega).
+ */
 function Zona({ className, deshabilitado, onArchivos, children }) {
   const [encima, setEncima] = useState(false);
   const sobre = (e) => {
@@ -65,6 +76,13 @@ function Zona({ className, deshabilitado, onArchivos, children }) {
   return (
     <div
       className={`${className} ${encima ? 'encima' : ''}`}
+      tabIndex={0}
+      onPaste={(e) => {
+        const files = archivosPegados(e);
+        if (!files.length) return; // texto normal: se pega donde corresponda
+        e.preventDefault();
+        if (!deshabilitado) onArchivos(files);
+      }}
       onDragEnter={sobre}
       onDragOver={sobre}
       onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setEncima(false); }}
@@ -247,7 +265,7 @@ export default function Documentos({ tipo, id, docs = [], compacto = false, onCa
                 deshabilitado={ocupado}
                 onElegir={(files) => elegir(files, e)}
               />
-              {!archivos.length && <span className="arrastra">o arrástralo aquí</span>}
+              <span className="arrastra">{archivos.length ? 'También puedes arrastrar o pegar (Ctrl+V)' : 'o arrástralo aquí, o haz clic en la casilla y pega con Ctrl+V'}</span>
             </Zona>
           );
         })}
