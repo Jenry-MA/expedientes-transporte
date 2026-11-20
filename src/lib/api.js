@@ -49,7 +49,9 @@ export async function descargar(key) {
   const url = await urlDeVista(key);
   let res;
   try {
-    res = await fetch(url);
+    // Sin caché: las miniaturas (<img>) ya pidieron este mismo link sin CORS y el navegador
+    // guarda esa copia; si se reutiliza aquí, la revisión de CORS la rechaza.
+    res = await fetch(url, { mode: 'cors', cache: 'no-store' });
   } catch {
     throw new Error(AVISO_CORS());
   }

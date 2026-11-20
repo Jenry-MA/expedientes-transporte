@@ -68,7 +68,6 @@ r2-cors.json                   política CORS del bucket
    | `VITE_FIREBASE_AUTH_DOMAIN` | `tu-proyecto.firebaseapp.com` |
    | `VITE_FIREBASE_PROJECT_ID` | `tu-proyecto` |
    | `VITE_FIREBASE_APP_ID` | de Firebase |
-   | `VITE_EMPRESA_NOMBRE` | opcional, sale en el PDF |
 
    **Settings → Variables and Secrets** (las usa la API cuando corre):
 
@@ -118,8 +117,9 @@ Abrir <http://localhost:5173>. Vite redirige `/api` al `wrangler dev` del puerto
     (lado mayor 1600 px, JPEG 0.8) y se sube a `pilotos|cabezales|tcs/{id}/{docId}.jpg`.
   - PDF: hasta 15 MB, sin contraseña; se sube tal cual a `.../{docId}.pdf`.
   - Firestore guarda `{ key, etiqueta, tipo, paginas?, nombre?, subidaEn }` en `fotos[]`.
-- **Expediente:** las imágenes van en la página de la unidad; los PDF se unen completos justo después,
-  con un rótulo arriba («Unidad 3 · Piloto — Licencia») y la numeración de páginas de todo el documento.
+- **Expediente (PDF):** solo los documentos, sin encabezado ni textos. Las imágenes van a todo lo ancho, una debajo
+  de otra, y cada unidad empieza en hoja nueva; los PDF adjuntos se unen completos después de las imágenes de su
+  unidad. Al pie de cada hoja: «Página X de N».
 - **Transportes:** catálogo con solo el nombre (`transportes/{nombre normalizado}`). El campo Transportista de
   pilotos, cabezales y TC autocompleta desde ahí y permite agregar uno nuevo sin salir del formulario.
   Cambiar el nombre en el catálogo lo actualiza en todos los registros que lo usan.

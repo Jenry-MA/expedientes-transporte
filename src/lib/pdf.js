@@ -1,18 +1,19 @@
 import { jsPDF } from 'jspdf';
 import { descargar } from './api';
-import { fmtFecha } from './catalogo';
 
-// Cómo se arma el expediente:
-// 1. jsPDF dibuja las páginas propias (resumen, datos de cada unidad y sus imágenes).
+// Cómo se arma el expediente (solo documentos, sin textos):
+// 1. jsPDF pone las imágenes de cada unidad, una debajo de otra, a todo lo ancho de la hoja.
+//    Cada unidad empieza en hoja nueva.
 // 2. pdf-lib une ese PDF con los PDF que se subieron al catálogo (licencias, tarjetas…),
-//    cada uno justo después de las páginas de su unidad, y numera todas las páginas.
+//    cada uno justo después de las imágenes de su unidad, y pone "Página X de N" al pie.
 
-const EMPRESA = import.meta.env.VITE_EMPRESA_NOMBRE || '';
 const M = 15; // margen (mm)
 const ANCHO = 210;
 const ALTO = 297;
 const UTIL = ANCHO - 2 * M;
-const LIMITE_Y = ALTO - M - 6; // deja espacio al pie de página
+const LIMITE_Y = ALTO - M - 4; // deja espacio al número de página
+const SEP = 7; // espacio entre imágenes
+const ALTO_MAX = LIMITE_Y - M; // lo más alto que puede ir una imagen
 const MM = 72 / 25.4; // puntos por mm (pdf-lib usa puntos)
 
 const esPdf = (d) => d.tipo === 'pdf' || /\.pdf$/.test(d.key);
@@ -26,7 +27,7 @@ async function cargarImagen(key) {
     return { data: new Uint8Array(await blob.arrayBuffer()), ...dims };
   } catch (e) {
     console.warn('No se pudo cargar la imagen', key, e);
-    return null;
+    return { error: e.message || String(e) };
   }
 }
 
@@ -41,76 +42,24 @@ async function cargarPdf(key) {
   }
 }
 
-function encabezado(doc, op, subtitulo) {
-  doc.setTextColor(0);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.text('Expediente de transporte', M, M + 5);
-  if (EMPRESA) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.text(EMPRESA, ANCHO - M, M + 5, { align: 'right' });
-  }
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.text(`Barco: ${op.barco}${op.viaje ? `  V. ${op.viaje}` : ''}    ETA: ${fmtFecha(op.fecha)}`, M, M + 11);
-  if (subtitulo) {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.text(subtitulo, ANCHO - M, M + 11, { align: 'right' });
-  }
-  doc.setDrawColor(120);
-  doc.setLineWidth(0.3);
-  doc.line(M, M + 14, ANCHO - M, M + 14);
-  return M + 20;
+/**
+ * Lleva la cuenta de la hoja actual. La primera hoja de jsPDF ya existe y se usa
+ * solo si hay algo que poner; así no quedan hojas en blanco.
+ */
+function crearHojas(doc) {
+  const h = { usada: false, y: M };
+  h.nueva = () => {
+    if (h.usada) doc.addPage();
+    h.usada = true;
+    h.y = M;
+  };
+  h.total = () => (h.usada ? doc.getNumberOfPages() : 0);
+  return h;
 }
 
-function bloqueDatos(doc, x, y, w, titulo, filas) {
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.text(titulo, x, y);
-  y += 5;
-  doc.setFontSize(9);
-  for (const [k, v] of filas) {
-    doc.setFont('helvetica', 'bold');
-    const etiqueta = k ? `${k}: ` : '';
-    const anchoEtiqueta = doc.getTextWidth(etiqueta);
-    doc.text(etiqueta, x, y);
-    doc.setFont('helvetica', 'normal');
-    const lineas = doc.splitTextToSize(String(v || '—'), w - anchoEtiqueta);
-    doc.text(lineas, x + anchoEtiqueta, y);
-    y += lineas.length * 4.2;
-  }
-  return y;
-}
-
-const datosPiloto = (p) => p
-  ? [['Nombre', p.nombre], ['Licencia', p.licencia], ['Teléfono', p.telefono], ['Transportista', p.transportista]]
-  : [['', 'Sin asignar']];
-const datosVehiculo = (v) => v
-  ? [['Placa', v.placa], ['Transportista', v.transportista], ...(v.notas ? [['Notas', v.notas]] : [])]
-  : [['', 'Sin asignar']];
-
-/** Dibuja la unidad y devuelve los PDF adjuntos ya cargados, para unirlos después. */
-async function paginasUnidad(doc, op, a, { piloto, cabezal, tc }) {
-  const titulo = `Unidad ${a.numero}`;
-  let y = encabezado(doc, op, titulo);
-  const colW = (UTIL - 10) / 3;
-  const finales = [
-    bloqueDatos(doc, M, y, colW, 'Piloto', datosPiloto(piloto)),
-    bloqueDatos(doc, M + colW + 5, y, colW, 'Cabezal', datosVehiculo(cabezal)),
-    bloqueDatos(doc, M + 2 * (colW + 5), y, colW, 'TC', datosVehiculo(tc)),
-  ];
-  y = Math.max(...finales) + 3;
-  doc.setDrawColor(200);
-  doc.line(M, y, ANCHO - M, y);
-  y += 7;
-
-  const todos = [
-    ...(piloto?.fotos || []).map((f) => ({ ...f, grupo: 'Piloto' })),
-    ...(cabezal?.fotos || []).map((f) => ({ ...f, grupo: 'Cabezal' })),
-    ...(tc?.fotos || []).map((f) => ({ ...f, grupo: 'TC' })),
-  ];
+/** Pone las imágenes de la unidad y devuelve sus PDF adjuntos ya cargados, para unirlos después. */
+async function paginasUnidad(doc, hojas, { piloto, cabezal, tc }) {
+  const todos = [...(piloto?.fotos || []), ...(cabezal?.fotos || []), ...(tc?.fotos || [])];
   const imagenes = todos.filter((d) => !esPdf(d));
   const pdfs = todos.filter(esPdf);
   const [imgs, docsPdf] = await Promise.all([
@@ -118,185 +67,83 @@ async function paginasUnidad(doc, op, a, { piloto, cabezal, tc }) {
     Promise.all(pdfs.map((f) => cargarPdf(f.key))),
   ]);
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.text('Documentos', M, y);
-  y += 4;
-  if (!todos.length) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.text('Sin documentos registrados.', M, y + 4);
-    return [];
-  }
-
-  // Cada imagen ocupa todo el ancho útil de la hoja, con su proporción original.
-  // Si es tan alta que no cabe en una hoja, se reduce hasta caber (centrada).
-  const rotuloH = 5;
-  const sep = 7;
-  const topePagina = M + 20; // donde empieza el contenido debajo del encabezado
-  const altoMax = LIMITE_Y - topePagina - rotuloH;
+  if (imagenes.length) hojas.nueva(); // cada unidad empieza en hoja nueva
 
   imagenes.forEach((f, i) => {
-    const img = imgs[i];
+    const fallo = imgs[i]?.error;
+    const img = fallo ? null : imgs[i];
+    // Todo el ancho útil con su proporción; si es muy alta, se reduce hasta caber en la hoja.
     let w = UTIL;
     let h = img ? (img.h * UTIL) / img.w : 40;
-    if (h > altoMax) {
-      w = (w * altoMax) / h;
-      h = altoMax;
+    if (h > ALTO_MAX) {
+      w = (w * ALTO_MAX) / h;
+      h = ALTO_MAX;
     }
-    const libre = LIMITE_Y - y - rotuloH;
+    const libre = LIMITE_Y - hojas.y;
     if (h > libre && h * 0.9 <= libre) {
       // Le falta poco para caber: se reduce un poco (máx. 10 %) en vez de gastar otra hoja.
       w = (w * libre) / h;
       h = libre;
-    } else if (h > libre && y > topePagina) {
-      doc.addPage();
-      y = encabezado(doc, op, `${titulo} (cont.)`);
+    } else if (h > libre) {
+      hojas.nueva();
     }
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(0);
-    doc.text(doc.splitTextToSize(`${f.grupo} — ${f.etiqueta}`, UTIL)[0], M, y + 3.5);
 
-    const top = y + rotuloH;
     const x = M + (UTIL - w) / 2;
+    const top = hojas.y;
     if (img) {
       doc.addImage(img.data, 'JPEG', x, top, w, h, undefined, 'FAST');
     } else {
+      // Aviso dentro del recuadro para que se sepa qué falta y por qué.
+      doc.setDrawColor(200);
+      doc.rect(x, top, w, h);
       doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
       doc.setTextColor(150);
       doc.text('No se pudo cargar la imagen', M + UTIL / 2, top + h / 2, { align: 'center' });
+      if (fallo) {
+        doc.setFontSize(7);
+        doc.text(doc.splitTextToSize(fallo, UTIL - 10).slice(0, 2), M + UTIL / 2, top + h / 2 + 5, { align: 'center' });
+      }
       doc.setTextColor(0);
     }
-    doc.setDrawColor(200);
-    doc.rect(x, top, w, h);
-    y = top + h + sep;
+    hojas.y = top + h + SEP;
   });
 
-  // Lista de los PDF que se agregan después de estas páginas.
-  if (pdfs.length) {
-    if (y + 8 + pdfs.length * 4.5 > LIMITE_Y) {
-      doc.addPage();
-      y = encabezado(doc, op, `${titulo} (cont.)`);
-    }
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.text('Documentos PDF (en las páginas siguientes):', M, y + 2);
-    y += 7;
-    doc.setFont('helvetica', 'normal');
-    pdfs.forEach((f, i) => {
-      const p = docsPdf[i];
-      const detalle = p ? `${p.getPageCount()} pág.` : 'no se pudo cargar';
-      doc.text(`• ${f.grupo} — ${f.etiqueta} (${detalle})`, M + 2, y);
-      y += 4.5;
-    });
-  }
-
-  return pdfs
-    .map((f, i) => ({ pdf: docsPdf[i], rotulo: `Unidad ${a.numero} · ${f.grupo} — ${f.etiqueta}` }))
-    .filter((x) => x.pdf);
+  return docsPdf.filter(Boolean);
 }
-
-function resumen(doc, op, asignaciones, resolver) {
-  let y = encabezado(doc, op, 'Resumen');
-  if (op.notas) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    const l = doc.splitTextToSize(`Notas: ${op.notas}`, UTIL);
-    doc.text(l, M, y);
-    y += l.length * 4.2 + 3;
-  }
-  const cols = [
-    { t: '#', w: 10, v: (a) => String(a.numero) },
-    { t: 'Piloto', w: 50, v: (a, p) => p.piloto?.nombre },
-    { t: 'Licencia', w: 28, v: (a, p) => p.piloto?.licencia },
-    { t: 'Cabezal', w: 26, v: (a, p) => p.cabezal?.placa },
-    { t: 'TC', w: 26, v: (a, p) => p.tc?.placa },
-    { t: 'Transportista', w: 40, v: (a, p) => p.piloto?.transportista || p.cabezal?.transportista },
-  ];
-  const filaH = 7;
-
-  const cabecera = () => {
-    doc.setFillColor(230, 235, 242);
-    doc.rect(M, y, UTIL, filaH, 'F');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    let x = M;
-    for (const c of cols) {
-      doc.text(c.t, x + 1.5, y + 4.8);
-      x += c.w;
-    }
-    y += filaH;
-  };
-
-  cabecera();
-  doc.setFont('helvetica', 'normal');
-  for (const a of asignaciones) {
-    if (y + filaH > LIMITE_Y) {
-      doc.addPage();
-      y = encabezado(doc, op, 'Resumen (cont.)');
-      cabecera();
-      doc.setFont('helvetica', 'normal');
-    }
-    const p = resolver(a);
-    let x = M;
-    for (const c of cols) {
-      const texto = doc.splitTextToSize(String(c.v(a, p) || '—'), c.w - 3)[0];
-      doc.text(texto, x + 1.5, y + 4.8);
-      x += c.w;
-    }
-    doc.setDrawColor(220);
-    doc.line(M, y + filaH, ANCHO - M, y + filaH);
-    y += filaH;
-  }
-  doc.setFont('helvetica', 'bold');
-  doc.text(`Total de unidades: ${asignaciones.length}`, M, y + 7);
-}
-
-// Las fuentes estándar de PDF solo tienen caracteres latinos; lo demás se cambia por "?".
-const latino = (s) => String(s).replace(/[^\x20-\x7E -ÿ–—•]/g, '?');
 
 /**
- * Une las páginas de jsPDF con los PDF adjuntos. `tramos` = [{ hasta, adjuntos }]:
- * después de la página `hasta` del PDF base se insertan los adjuntos de ese tramo.
+ * Une las hojas de jsPDF con los PDF adjuntos y numera todo. `tramos` = [{ hasta, adjuntos }]:
+ * después de la hoja `hasta` del PDF base se insertan los adjuntos de ese tramo.
  */
 async function ensamblar(base, tramos) {
   const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
   const propio = await PDFDocument.load(base.output('arraybuffer'));
   const final = await PDFDocument.create();
-  const rotulos = new Map(); // índice de página -> rótulo (solo páginas adjuntas)
 
   let desde = 0;
   for (const tramo of tramos) {
     const indices = Array.from({ length: tramo.hasta - desde }, (_, i) => desde + i);
     (await final.copyPages(propio, indices)).forEach((p) => final.addPage(p));
     desde = tramo.hasta;
-    for (const adj of tramo.adjuntos) {
-      for (const p of await final.copyPages(adj.pdf, adj.pdf.getPageIndices())) {
-        rotulos.set(final.getPageCount(), adj.rotulo);
-        final.addPage(p);
-      }
+    for (const pdf of tramo.adjuntos) {
+      (await final.copyPages(pdf, pdf.getPageIndices())).forEach((p) => final.addPage(p));
     }
   }
 
-  const fuente = await final.embedFont(StandardFonts.Helvetica);
   const total = final.getPageCount();
-  const ahora = latino(new Date().toLocaleString('es-GT'));
-  const gris = rgb(0.45, 0.45, 0.45);
-  const texto = (page, t, x, y) => {
-    const ancho = fuente.widthOfTextAtSize(t, 8);
-    page.drawRectangle({ x: x - 2, y: y - 2.5, width: ancho + 4, height: 10, color: rgb(1, 1, 1), opacity: 0.85 });
-    page.drawText(t, { x, y, size: 8, font: fuente, color: gris });
-    return ancho;
-  };
+  if (!total) throw new Error('No hay documentos para el PDF: sube las licencias, tarjetas o calcomanías primero.');
 
+  const fuente = await final.embedFont(StandardFonts.Helvetica);
   final.getPages().forEach((page, i) => {
-    const { width, height } = page.getSize();
-    const piso = 8 * MM;
-    texto(page, `Generado ${ahora}`, M * MM, piso);
-    const num = `Página ${i + 1} de ${total}`;
-    texto(page, num, width - M * MM - fuente.widthOfTextAtSize(num, 8), piso);
-    if (rotulos.has(i)) texto(page, latino(rotulos.get(i)), M * MM, height - 8 * MM);
+    const { width } = page.getSize();
+    const t = `Página ${i + 1} de ${total}`;
+    const ancho = fuente.widthOfTextAtSize(t, 8);
+    const x = width - M * MM - ancho;
+    const y = 8 * MM;
+    // Fondo blanco por si un PDF adjunto tiene contenido en esa esquina.
+    page.drawRectangle({ x: x - 2, y: y - 2.5, width: ancho + 4, height: 10, color: rgb(1, 1, 1), opacity: 0.85 });
+    page.drawText(t, { x, y, size: 8, font: fuente, color: rgb(0.45, 0.45, 0.45) });
   });
 
   return new Blob([await final.save()], { type: 'application/pdf' });
@@ -304,22 +151,22 @@ async function ensamblar(base, tramos) {
 
 const nuevoDoc = () => new jsPDF({ unit: 'mm', format: 'a4', compress: true });
 
-/** PDF de una unidad: datos, imágenes y los PDF adjuntos de piloto, cabezal y TC. */
+/** PDF de una unidad: imágenes y PDF adjuntos de piloto, cabezal y TC. */
 export async function pdfUnidad(op, asignacion, piezas) {
   const doc = nuevoDoc();
-  const adjuntos = await paginasUnidad(doc, op, asignacion, piezas);
-  return ensamblar(doc, [{ hasta: doc.getNumberOfPages(), adjuntos }]);
+  const hojas = crearHojas(doc);
+  const adjuntos = await paginasUnidad(doc, hojas, piezas);
+  return ensamblar(doc, [{ hasta: hojas.total(), adjuntos }]);
 }
 
-/** PDF de toda la operación: resumen + cada unidad con sus adjuntos. `resolver(a)` -> {piloto, cabezal, tc}. */
+/** PDF de toda la operación: los documentos de cada unidad, en orden. `resolver(a)` -> {piloto, cabezal, tc}. */
 export async function pdfOperacion(op, asignaciones, resolver) {
   const doc = nuevoDoc();
-  resumen(doc, op, asignaciones, resolver);
-  const tramos = [{ hasta: doc.getNumberOfPages(), adjuntos: [] }];
+  const hojas = crearHojas(doc);
+  const tramos = [];
   for (const a of asignaciones) {
-    doc.addPage();
-    const adjuntos = await paginasUnidad(doc, op, a, resolver(a));
-    tramos.push({ hasta: doc.getNumberOfPages(), adjuntos });
+    const adjuntos = await paginasUnidad(doc, hojas, resolver(a));
+    tramos.push({ hasta: hojas.total(), adjuntos });
   }
   return ensamblar(doc, tramos);
 }
