@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { fmtFecha, fmtViaje } from '../lib/catalogo';
+import { fmtFecha, fmtTelefono, fmtViaje, telHref } from '../lib/catalogo';
 import { duplicarOperacion, useAsignaciones, useColeccion, useDocumento } from '../lib/db';
 import { abrirArchivo, abrirBlob, subirArchivo } from '../lib/api';
 import { pdfOperacion, pdfUnidad } from '../lib/pdf';
@@ -216,7 +216,14 @@ export default function OperacionPage() {
                 <div className="unidad-datos">
                   <div className="dato">
                     <span className="dato-tipo">Piloto</span>
-                    {p.piloto ? <b title={p.piloto.nombre}>{p.piloto.nombre}</b> : <span className="vacio">Sin piloto</span>}
+                    {p.piloto ? (
+                      <span className="dato-piloto">
+                        <b title={p.piloto.nombre}>{p.piloto.nombre}</b>
+                        {p.piloto.telefono
+                          ? <a className="telefono" href={telHref(p.piloto.telefono)}>Tel. {fmtTelefono(p.piloto.telefono)}</a>
+                          : <span className="vacio">Sin teléfono</span>}
+                      </span>
+                    ) : <span className="vacio">Sin piloto</span>}
                   </div>
                   <div className="dato">
                     <span className="dato-tipo">Cabezal</span>

@@ -12,7 +12,7 @@ export const TIPOS = {
     etiquetas: ['Licencia (frente)', 'Licencia (reverso)', 'Otro'],
     busqueda: ['nombre', 'licencia', 'telefono', 'transportista'],
     resumen: (p) => p.nombre,
-    detalle: (p) => [p.licencia && `Lic. ${p.licencia}`, p.transportista].filter(Boolean).join(', '),
+    detalle: (p) => [p.licencia && `Lic. ${p.licencia}`, p.telefono && `Tel. ${fmtTelefono(p.telefono)}`, p.transportista].filter(Boolean).join(', '),
   },
   cabezales: {
     titulo: 'Cabezales',
@@ -71,6 +71,15 @@ export function fmtFecha(iso) {
 }
 
 /** "V. 045", "v045", "V 45" -> "045" / "45": se guarda sin el prefijo. */
+/** Teléfono de Guatemala de 8 dígitos como "5767 4479"; cualquier otro formato se deja como vino. */
+export function fmtTelefono(t) {
+  const s = String(t ?? '').trim();
+  const d = s.replace(/\D/g, '');
+  return d.length === 8 ? `${d.slice(0, 4)} ${d.slice(4)}` : s;
+}
+/** Para el enlace tel: (tocar y llamar desde el celular). */
+export const telHref = (t) => `tel:${String(t ?? '').replace(/[^\d+]/g, '')}`;
+
 export const limpiarViaje = (v) => String(v ?? '').trim().replace(/^v(?:\.\s*|\s+|(?=\d))/i, '').trim();
 export const fmtViaje = (v) => (limpiarViaje(v) ? `V. ${limpiarViaje(v)}` : '');
 
