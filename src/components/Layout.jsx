@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
@@ -12,6 +13,12 @@ export default function Layout({ user, nombre, esAdmin }) {
     { to: '/transportes', texto: 'Transportes', Icono: IconoTransporte },
     ...(esAdmin ? [{ to: '/usuarios', texto: 'Usuarios', Icono: IconoUsuarios }] : []),
   ];
+  // Precarga lo que arma los PDF unos segundos después de entrar: así ya está listo
+  // y no depende de que la pestaña siga en la misma versión cuando se pida el PDF.
+  useEffect(() => {
+    const t = setTimeout(() => { import('pdf-lib').catch(() => {}); }, 4000);
+    return () => clearTimeout(t);
+  }, []);
   const salir = () => signOut(auth);
   const marca = (
     <Link to="/operaciones" className="marca">

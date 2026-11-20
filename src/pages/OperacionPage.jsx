@@ -49,7 +49,9 @@ export default function OperacionPage() {
       await fn();
     } catch (e) {
       console.error(e);
-      setMsg(e.message);
+      setMsg(/dynamically imported module|Importing a module script failed/i.test(e.message)
+        ? 'Hay una versión nueva de la app. Recarga la página (Ctrl+F5) e intenta de nuevo.'
+        : e.message);
     } finally {
       setOcupado('');
     }

@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { arrayRemove, arrayUnion, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { TIPOS } from '../lib/catalogo';
-import { abrirArchivo, borrarArchivo, subirArchivo } from '../lib/api';
+import { borrarArchivo, subirArchivo } from '../lib/api';
 import FotoR2 from './FotoR2';
 import Recorte from './Recorte';
+import Visor from './Visor';
 
 const nuevoId = () => crypto.randomUUID().replace(/-/g, '');
 const MAX_PDF = 15 * 1024 * 1024;
@@ -81,8 +82,8 @@ function Zona({ className, deshabilitado, onArchivos, children }) {
   );
 }
 
-function Archivo({ d, etiquetas, onBorrar, onEtiqueta, onError }) {
-  const ver = () => abrirArchivo(d.key).catch((e) => onError(e.message));
+function Archivo({ d, etiquetas, onBorrar, onEtiqueta, onVer }) {
+  const ver = () => onVer(d);
   const opciones = etiquetas.includes(d.etiqueta) ? etiquetas : [d.etiqueta, ...etiquetas];
   return (
     <figure className="archivo">
@@ -115,6 +116,7 @@ export default function Documentos({ tipo, id, docs = [], compacto = false, onCa
   const [progreso, setProgreso] = useState('');
   const [error, setError] = useState('');
   const [etiquetaOtro, setEtiquetaOtro] = useState('');
+  const [viendo, setViendo] = useState(null); // key del documento abierto en el visor
   const contador = useRef(0);
   const trabajando = !!progreso || cola.length > 0;
   useEffect(() => {
@@ -206,7 +208,10 @@ export default function Documentos({ tipo, id, docs = [], compacto = false, onCa
   const faltan = etiquetas.filter((e) => !docs.some((d) => d.etiqueta === e)).length;
   const ocupado = !!progreso;
   const actual = cola[0];
-  const props = { etiquetas, onBorrar: borrar, onEtiqueta: cambiarEtiqueta, onError: setError };
+  const props = { etiquetas, onBorrar: borrar, onEtiqueta: cambiarEtiqueta, onVer: (d) => setViendo(d.key) };
+  // Orden del visor: el mismo de las casillas.
+  const enOrden = [...etiquetas.flatMap((e) => docs.filter((d) => d.etiqueta === e)), ...otros];
+  const posVisor = enOrden.findIndex((d) => d.key === viendo);
 
   return (
     <section className={compacto ? 'documentos compacto' : onCambiar ? 'documentos' : 'tarjeta documentos'}>
@@ -274,6 +279,8 @@ export default function Documentos({ tipo, id, docs = [], compacto = false, onCa
           />
         </Zona>
       </div>
+
+      {posVisor >= 0 && <Visor docs={enOrden} inicio={posVisor} onCerrar={() => setViendo(null)} />}
 
       {actual && (
         <Recorte
