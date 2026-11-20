@@ -2,7 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 
-export default function Layout({ user }) {
+export default function Layout({ user, esAdmin }) {
   return (
     <>
       <header className="barra">
@@ -12,6 +12,7 @@ export default function Layout({ user }) {
           <NavLink to="/catalogo/pilotos">Pilotos</NavLink>
           <NavLink to="/catalogo/cabezales">Cabezales</NavLink>
           <NavLink to="/catalogo/tcs">TC</NavLink>
+          {esAdmin && <NavLink to="/usuarios">Usuarios</NavLink>}
         </nav>
         <div className="usuario">
           <span title={user.email}>{user.email}</span>

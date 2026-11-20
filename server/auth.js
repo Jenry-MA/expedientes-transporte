@@ -44,6 +44,7 @@ async function esDelEquipo(email, token, projectId) {
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (res.status >= 500) throw new HttpError(503, 'No se pudo verificar el equipo, intenta de nuevo');
   const ok = res.ok;
-  equipoCache.set(email, { ok, exp: Date.now() + CACHE_MS });
+  // Solo se cachea el "sí": así un usuario recién aprobado puede usar la API de inmediato.
+  if (ok) equipoCache.set(email, { ok, exp: Date.now() + CACHE_MS });
   return ok;
 }

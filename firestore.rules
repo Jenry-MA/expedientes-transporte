@@ -1,17 +1,51 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Lista del equipo: un documento por usuario en equipo/{correo en minúsculas}.
-    // Se crean a mano en la consola de Firebase.
+    // Equipo: un documento por usuario aprobado en equipo/{correo en minúsculas},
+    // con rol 'admin' o 'miembro'. El primero en registrarse se vuelve admin;
+    // los demás dejan una solicitud que un admin aprueba.
+
+    function correo() { return request.auth.token.email; }
+    function rutaEquipo(e) { return /databases/$(database)/documents/equipo/$(e); }
+    function rutaAdmin() { return /databases/$(database)/documents/config/admin; }
+
     function esEquipo() {
-      return request.auth != null
-        && request.auth.token.email != null
-        && exists(/databases/$(database)/documents/equipo/$(request.auth.token.email));
+      return request.auth != null && correo() != null && exists(rutaEquipo(correo()));
+    }
+    function esAdmin() {
+      return esEquipo() && get(rutaEquipo(correo())).data.rol == 'admin';
+    }
+    // Solo mientras no exista config/admin: el usuario se nombra admin a sí mismo
+    // en el mismo batch en que crea config/admin.
+    function reclamandoAdmin(e) {
+      return request.auth != null && e == correo()
+        && !exists(rutaAdmin())
+        && getAfter(rutaAdmin()).data.email == e
+        && request.resource.data.rol == 'admin';
     }
 
-    match /equipo/{email} {
-      allow read: if request.auth != null && request.auth.token.email == email;
-      allow write: if false;
+    // Marca de que ya hay admin. Se crea una sola vez y nunca se modifica.
+    match /config/admin {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.email == correo()
+        && getAfter(rutaEquipo(correo())).data.rol == 'admin';
+      allow update, delete: if false;
+    }
+
+    match /equipo/{e} {
+      allow read: if request.auth != null && (e == correo() || esEquipo());
+      allow create, update: if esAdmin() || reclamandoAdmin(e);
+      allow delete: if esAdmin() && e != correo();
+    }
+
+    // Solicitudes de acceso: el usuario crea la suya; el admin la aprueba o rechaza.
+    match /solicitudes/{e} {
+      allow read: if request.auth != null && (e == correo() || esAdmin());
+      allow create: if request.auth != null && e == correo()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.estado == 'pendiente';
+      allow update, delete: if esAdmin();
     }
 
     match /{col}/{id} {

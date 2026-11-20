@@ -24,15 +24,24 @@ r2-cors.json                   política CORS del bucket
 
 1. Crear proyecto en <https://console.firebase.google.com>.
 2. **Authentication → Sign-in method:** activar *Correo electrónico/contraseña*.
-3. **Authentication → Users:** crear un usuario por persona del equipo (no hay registro público en la app).
-4. **Firestore Database:** crear base en modo producción.
-5. **Firestore → Reglas:** pegar el contenido de [`firestore.rules`](firestore.rules) y publicar.
-6. **Firestore → Datos:** crear la colección `equipo` con un documento por usuario, cuyo **ID es el correo en minúsculas**
-   (por ejemplo `ana@empresa.com`). El contenido puede ser `{ nombre: "Ana" }`. Sin ese documento el usuario no entra
-   ni puede usar la API.
-7. **Configuración del proyecto → Tus apps → Web:** registrar una app y copiar `apiKey`, `authDomain`, `projectId`, `appId`.
-8. **Authentication → Settings → Authorized domains:** agregar el dominio del Worker
+3. **Firestore Database:** crear base en modo producción.
+4. **Firestore → Reglas:** pegar el contenido de [`firestore.rules`](firestore.rules) y publicar.
+   Hay que volver a publicarlas cada vez que cambie ese archivo.
+5. **Configuración del proyecto → Tus apps → Web:** registrar una app y copiar `apiKey`, `authDomain`, `projectId`, `appId`.
+6. **Authentication → Settings → Authorized domains:** agregar el dominio del Worker
    (`expedientes-transporte.TU-SUBDOMINIO.workers.dev`).
+
+### Usuarios
+
+- Cada persona se registra en la página con **Crear cuenta** (nombre, correo, contraseña).
+- **El primero en registrarse queda como admin.** Después de eso, nadie más puede nombrarse admin solo
+  (queda marcado en `config/admin`). Regístrate tú primero en cuanto la página esté publicada.
+- Los demás quedan en **Esperando aprobación**. El admin los ve en **Usuarios** y los aprueba o rechaza;
+  al aprobarlos entran sin recargar la página.
+- En **Usuarios** el admin también cambia roles (admin / miembro) y quita accesos. Por ahora los miembros pueden
+  ver y editar todo; lo único exclusivo del admin es manejar usuarios.
+- Firestore guarda el equipo en `equipo/{correo}` (con `rol`) y las solicitudes en `solicitudes/{correo}`.
+- Firebase no verifica que el correo sea de quien se registra: el admin debe aprobar solo a quien reconozca.
 
 ## 2. Cloudflare R2
 
