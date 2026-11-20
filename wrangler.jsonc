@@ -15,6 +15,13 @@
   "r2_buckets": [
     { "binding": "BUCKET", "bucket_name": "transcadelga" }
   ],
+  // Variables que no son secretas. Las llaves de R2 (R2_ACCESS_KEY_ID y
+  // R2_SECRET_ACCESS_KEY) van SOLO como "Secret" en el panel, nunca aquí.
+  "vars": {
+    "FIREBASE_PROJECT_ID": "expedientes-transporte",
+    "R2_ACCOUNT_ID": "8e2dfc49cff6a043b3860b5cc037be95",
+    "R2_BUCKET": "transcadelga"
+  },
   // Conserva las variables puestas en el panel al desplegar desde GitHub.
   "keep_vars": true,
   "observability": { "enabled": true }
