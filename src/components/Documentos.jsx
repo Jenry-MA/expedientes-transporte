@@ -160,10 +160,11 @@ export default function Documentos({ tipo, id, docs = [], compacto = false }) {
     <section className={compacto ? 'documentos compacto' : 'tarjeta documentos'}>
       {!compacto && (
         <div className="encabezado">
-          <h3>Documentos</h3>
-          <span className="tenue">
-            {faltan ? `Faltan ${faltan} de ${etiquetas.length}` : 'Completo ✓'} · imagen o PDF
-          </span>
+          <div>
+            <h3>Documentos</h3>
+            <p className="tenue">Sube una foto o un PDF en cada casilla. Las fotos se pueden recortar antes de guardar.</p>
+          </div>
+          {faltan ? <span className="insignia falta">Faltan {faltan} de {etiquetas.length}</span> : <span className="insignia ok">Completo</span>}
         </div>
       )}
       {progreso && <p className="aviso">{progreso}</p>}
@@ -185,7 +186,7 @@ export default function Documentos({ tipo, id, docs = [], compacto = false }) {
               )}
               <BotonArchivo
                 principal={!archivos.length}
-                texto={archivos.length ? '+ Agregar' : 'Subir imagen o PDF'}
+                texto={archivos.length ? 'Agregar otro' : 'Subir foto o PDF'}
                 deshabilitado={ocupado}
                 onElegir={(files) => elegir(files, e)}
               />
@@ -206,7 +207,7 @@ export default function Documentos({ tipo, id, docs = [], compacto = false }) {
             onChange={(e) => setEtiquetaOtro(e.target.value)}
           />
           <BotonArchivo
-            texto="Subir imagen o PDF"
+            texto="Subir foto o PDF"
             deshabilitado={ocupado}
             onElegir={(files) => {
               elegir(files, etiquetaOtro.trim() || 'Otro');

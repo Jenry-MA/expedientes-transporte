@@ -24,7 +24,7 @@ export default function Selector({ tipo, items, valorId, onChange, usadoEn, abie
         <div className="pieza-dato">
           {actual ? (
             <>
-              <b>{cfg.resumen(actual)}</b>
+              {tipo === 'pilotos' ? <b>{cfg.resumen(actual)}</b> : <span><span className="matricula">{cfg.resumen(actual)}</span></span>}
               <span className="tenue">{cfg.detalle(actual)}</span>
             </>
           ) : valorId ? (
@@ -80,7 +80,7 @@ export default function Selector({ tipo, items, valorId, onChange, usadoEn, abie
               return (
                 <li key={it.id}>
                   <button type="button" className={it.id === valorId ? 'elegido' : ''} onClick={() => { setQ(''); onChange(it.id); }}>
-                    <b>{cfg.resumen(it)}</b>
+                    {tipo === 'pilotos' ? <b>{cfg.resumen(it)}</b> : <span className="matricula">{cfg.resumen(it)}</span>}
                     <span className="tenue">{cfg.detalle(it)}</span>
                     {usos.length > 0 && <span className="aviso">⚠ unidad {usos.join(', ')}</span>}
                   </button>
@@ -91,7 +91,7 @@ export default function Selector({ tipo, items, valorId, onChange, usadoEn, abie
           </ul>
           <div className="acciones">
             <button type="button" className="sec chico" onClick={() => setRegistrando(true)}>
-              + Registrar {cfg.singular.toLowerCase()} nuevo
+              Registrar {cfg.singular.toLowerCase()} nuevo
             </button>
             <button type="button" className="link" onClick={onCerrar}>Cerrar</button>
           </div>

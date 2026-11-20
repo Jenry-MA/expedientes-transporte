@@ -45,7 +45,7 @@ export default function FichaPage() {
         <p className="aviso">Este registro no existe o fue borrado.</p>
       ) : (
         <>
-          <h2>{nuevo ? `Nuevo ${cfg.singular.toLowerCase()}` : cfg.resumen(data)}</h2>
+          <h1>{nuevo ? `Registrar ${cfg.singular.toLowerCase()}` : tipo === 'pilotos' ? cfg.resumen(data) : <span className="matricula grande">{cfg.resumen(data)}</span>}</h1>
           <section className="tarjeta">
             <EntidadForm
               key={nuevo ? 'nuevo' : id}

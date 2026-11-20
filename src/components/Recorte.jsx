@@ -124,8 +124,8 @@ export default function Recorte({ file, etiqueta, restantes = 0, onListo, onCanc
           <div>
             <h3>Recortar imagen</h3>
             <p className="tenue">
-              {etiqueta} · {file.name}
-              {restantes > 0 && ` · faltan ${restantes} más`}
+              {etiqueta}, archivo {file.name}
+              {restantes > 0 && `. Después siguen ${restantes} más.`}
             </p>
           </div>
           <div className="acciones">

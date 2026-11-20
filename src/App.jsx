@@ -3,6 +3,7 @@ import { signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import { useSesion } from './lib/acceso';
 import Layout from './components/Layout';
+import AccesoMarco from './components/AccesoMarco';
 import Login from './pages/Login';
 import CatalogoPage from './pages/CatalogoPage';
 import FichaPage from './pages/FichaPage';
@@ -12,14 +13,14 @@ import UsuariosPage from './pages/UsuariosPage';
 
 function Aviso({ titulo, children, user }) {
   return (
-    <div className="centro">
-      <div className="tarjeta login">
-        <h1>{titulo}</h1>
+    <AccesoMarco>
+      <div className="acceso-form">
+        <h2>{titulo}</h2>
         {children}
         {user && <p className="tenue">Cuenta: {user.email}</p>}
-        <button onClick={() => signOut(auth)}>Salir</button>
+        <button className="sec" onClick={() => signOut(auth)}>Cerrar sesión</button>
       </div>
-    </div>
+    </AccesoMarco>
   );
 }
 
@@ -59,7 +60,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route element={<Layout user={sesion.user} esAdmin={esAdmin} />}>
+        <Route element={<Layout user={sesion.user} nombre={sesion.nombre} esAdmin={esAdmin} />}>
           <Route index element={<Navigate to="/operaciones" replace />} />
           <Route path="operaciones" element={<OperacionesPage />} />
           <Route path="operaciones/:id" element={<OperacionPage />} />

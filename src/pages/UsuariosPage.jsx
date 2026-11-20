@@ -55,7 +55,8 @@ export default function UsuariosPage({ yo }) {
 
   return (
     <>
-      <h2>Usuarios</h2>
+      <h1>Usuarios</h1>
+      <p className="tenue">Aprueba a quien pide acceso y decide quién administra.</p>
       {msg && <p className="aviso error">{msg}</p>}
 
       <section className="tarjeta">
@@ -69,7 +70,7 @@ export default function UsuariosPage({ yo }) {
             {pendientes.map((s) => (
               <li key={s.id} className="fila">
                 <b>{s.nombre}</b>
-                <span className="tenue">{s.id} · {fecha(s.creadoEn)}</span>
+                <span className="tenue">{s.id}{s.creadoEn && `, pidió acceso el ${fecha(s.creadoEn)}`}</span>
                 <div className="acciones">
                   <button className="chico" disabled={ocupado} onClick={() => aprobar(s)}>Aprobar</button>
                   <button className="peligro chico" disabled={ocupado} onClick={() => rechazar(s)}>Rechazar</button>

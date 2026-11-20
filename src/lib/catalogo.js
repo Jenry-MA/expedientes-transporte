@@ -13,7 +13,7 @@ export const TIPOS = {
     etiquetas: ['Licencia (frente)', 'Licencia (reverso)', 'DPI (frente)', 'DPI (reverso)', 'Foto del piloto', 'Otro'],
     busqueda: ['nombre', 'licencia', 'dpi', 'telefono', 'transportista'],
     resumen: (p) => p.nombre,
-    detalle: (p) => [p.licencia && `Lic. ${p.licencia}`, p.dpi && `DPI ${p.dpi}`, p.transportista].filter(Boolean).join(' · '),
+    detalle: (p) => [p.licencia && `Lic. ${p.licencia}`, p.dpi && `DPI ${p.dpi}`, p.transportista].filter(Boolean).join(', '),
   },
   cabezales: {
     titulo: 'Cabezales',

@@ -3,6 +3,19 @@ import { Link, useNavigate } from 'react-router-dom';
 import { fmtFecha, hoyISO, normalizar } from '../lib/catalogo';
 import { crearOperacion, useColeccion } from '../lib/db';
 
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+function FechaBloque({ iso }) {
+  const [, m, d] = String(iso || '').split('-');
+  if (!d) return null;
+  return (
+    <span className="fecha-bloque" aria-hidden="true">
+      <span className="mes">{MESES[Number(m) - 1]}</span>
+      <span className="dia">{Number(d)}</span>
+    </span>
+  );
+}
+
 export default function OperacionesPage() {
   const navigate = useNavigate();
   const { items, error } = useColeccion('operaciones');
@@ -25,13 +38,17 @@ export default function OperacionesPage() {
     }
   }
 
+  const nueva = () => setForm({ barco: '', fecha: hoyISO(), notas: '' });
   const campo = (name) => ({ value: form[name], onChange: (e) => setForm({ ...form, [name]: e.target.value }) });
 
   return (
     <>
       <div className="encabezado">
-        <h2>Operaciones de barco</h2>
-        {!form && <button onClick={() => setForm({ barco: '', fecha: hoyISO(), notas: '' })}>+ Nueva operación</button>}
+        <div>
+          <h1>Operaciones</h1>
+          <p className="tenue">Un barco por operación, con sus unidades de transporte.</p>
+        </div>
+        {!form && <button onClick={nueva}>Nueva operación</button>}
       </div>
 
       {form && (
@@ -44,7 +61,7 @@ export default function OperacionesPage() {
           </div>
           {msg && <p className="aviso error">{msg}</p>}
           <div className="acciones">
-            <button type="submit">Crear</button>
+            <button type="submit">Crear operación</button>
             <button type="button" className="sec" onClick={() => setForm(null)}>Cancelar</button>
           </div>
         </form>
@@ -55,16 +72,25 @@ export default function OperacionesPage() {
       {items === null ? (
         <p className="tenue">Cargando…</p>
       ) : lista.length === 0 ? (
-        <p className="tenue">{q ? 'Sin resultados.' : 'Todavía no hay operaciones.'}</p>
+        q ? (
+          <p className="tenue">Ningún barco coincide con «{q}».</p>
+        ) : (
+          <div className="lista-vacia">
+            <p>Todavía no hay operaciones. Crea una por cada barco que vayas a atender.</p>
+            {!form && <button onClick={nueva}>Nueva operación</button>}
+          </div>
+        )
       ) : (
         <ul className="lista">
           {lista.map((o) => (
             <li key={o.id}>
               <Link to={`/operaciones/${o.id}`}>
-                <b>{o.barco}</b>
-                <span className="tenue">{fmtFecha(o.fecha)}</span>
-                <span className="insignia">{o.ultimoNumero || 0} unidades</span>
-                {o.pdfKey && <span className="insignia ok">PDF</span>}
+                <FechaBloque iso={o.fecha} />
+                <span className="barco-info">
+                  <span className="barco-nombre">{o.barco}</span>
+                  <span className="tenue">{fmtFecha(o.fecha)}</span>
+                </span>
+                {o.pdfKey && <span className="insignia ok">PDF guardado</span>}
               </Link>
             </li>
           ))}

@@ -8,6 +8,7 @@ import { abrirArchivo, abrirBlob, subirArchivo } from '../lib/api';
 import { pdfOperacion, pdfUnidad } from '../lib/pdf';
 import UnidadEditor from '../components/UnidadEditor';
 
+const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
 const indexar = (items) => Object.fromEntries((items || []).map((i) => [i.id, i]));
 
 export default function OperacionPage() {
@@ -137,19 +138,22 @@ export default function OperacionPage() {
           </div>
         </form>
       ) : (
-        <div className="encabezado">
+        <div className="barco-cabecera">
           <div>
-            <h2>{op.barco}</h2>
+            <h1>{op.barco}</h1>
             <p className="tenue">
-              {fmtFecha(op.fecha)} · {lista.length} unidades · {cerradas} cerradas
-              {op.notas && <><br />{op.notas}</>}
+              {fmtFecha(op.fecha)}, {plural(lista.length, 'unidad', 'unidades')}
+              {lista.length > 0 && `, ${cerradas === lista.length ? 'todas cerradas' : plural(cerradas, 'cerrada', 'cerradas')}`}
             </p>
+            {op.notas && <p className="tenue">{op.notas}</p>}
           </div>
           <div className="acciones">
-            <button className="sec" onClick={() => setEditandoOp({ barco: op.barco, fecha: op.fecha, notas: op.notas || '' })}>Editar</button>
+            <button className="sec" onClick={() => setEditandoOp({ barco: op.barco, fecha: op.fecha, notas: op.notas || '' })}>Editar datos</button>
             <button className="sec" disabled={!!ocupado || !lista.length || !catalogoListo} onClick={() => vistaPrevia(null)}>Vista previa</button>
-            <button disabled={!!ocupado || !lista.length || !catalogoListo} onClick={guardarPdfOperacion}>Guardar PDF de operación</button>
             {op.pdfKey && <button className="sec" onClick={() => verPdf(op.pdfKey)}>Ver PDF guardado</button>}
+            <button disabled={!!ocupado || !lista.length || !catalogoListo} onClick={guardarPdfOperacion}>
+              {op.pdfKey ? 'Actualizar PDF de operación' : 'Guardar PDF de operación'}
+            </button>
           </div>
         </div>
       )}
@@ -157,59 +161,85 @@ export default function OperacionPage() {
       {ocupado && <p className="aviso">{ocupado}</p>}
       {msg && <p className="aviso error">{msg}</p>}
 
-      {editando ? (
+      <div className="barra-unidades">
+        <h2>Unidades</h2>
+        {!editando && <button onClick={() => setEditando('nueva')} disabled={!catalogoListo}>Agregar unidad</button>}
+      </div>
+
+      {editando === 'nueva' && (
         <UnidadEditor
-          key={editando === 'nueva' ? 'nueva' : editando.id}
+          key="nueva"
           operacionId={op.id}
-          asignacion={editando === 'nueva' ? null : editando}
+          asignacion={null}
           asignaciones={lista}
           catalogos={{ pilotos, cabezales, tcs }}
           onListo={() => setEditando(null)}
         />
-      ) : (
-        <button onClick={() => setEditando('nueva')} disabled={!catalogoListo}>+ Agregar unidad</button>
       )}
 
-      <div className="tabla-wrap">
-        <table className="tabla">
-          <thead>
-            <tr><th>#</th><th>Piloto</th><th>Cabezal</th><th>TC</th><th>Estado</th><th /></tr>
-          </thead>
-          <tbody>
-            {lista.length === 0 && (
-              <tr><td colSpan={6} className="tenue">Sin unidades todavía.</td></tr>
-            )}
-            {lista.map((a) => {
-              const p = piezas(a);
-              const cerrada = !!a.pdfKey;
+      {lista.length === 0 && editando !== 'nueva' ? (
+        <div className="lista-vacia">
+          <p>Este barco todavía no tiene unidades. Cada unidad junta un piloto, un cabezal y un TC.</p>
+          <button onClick={() => setEditando('nueva')} disabled={!catalogoListo}>Agregar la primera unidad</button>
+        </div>
+      ) : (
+        <ol className="unidades">
+          {lista.map((a) => {
+            const p = piezas(a);
+            const cerrada = !!a.pdfKey;
+            if (editando?.id === a.id) {
               return (
-                <tr key={a.id} className={editando?.id === a.id ? 'activa' : ''}>
-                  <td>{a.numero}</td>
-                  <td>{p.piloto ? <><b>{p.piloto.nombre}</b><br /><span className="tenue">{p.piloto.licencia}</span></> : <span className="tenue">—</span>}</td>
-                  <td>{p.cabezal?.placa || <span className="tenue">—</span>}</td>
-                  <td>{p.tc?.placa || <span className="tenue">—</span>}</td>
-                  <td>{cerrada ? <span className="insignia ok">Cerrada</span> : <span className="insignia">Abierta</span>}</td>
-                  <td><div className="acciones fin">
+                <li key={a.id}>
+                  <UnidadEditor
+                    operacionId={op.id}
+                    asignacion={a}
+                    asignaciones={lista}
+                    catalogos={{ pilotos, cabezales, tcs }}
+                    onListo={() => setEditando(null)}
+                  />
+                </li>
+              );
+            }
+            return (
+              <li key={a.id} className={`unidad ${cerrada ? 'cerrada' : ''}`}>
+                <div className="placa" aria-label={`Unidad ${a.numero}`}>{a.numero}</div>
+                <div className="unidad-datos">
+                  <div className="dato">
+                    <span className="dato-tipo">Piloto</span>
+                    {p.piloto ? <b title={p.piloto.nombre}>{p.piloto.nombre}</b> : <span className="vacio">Sin piloto</span>}
+                  </div>
+                  <div className="dato">
+                    <span className="dato-tipo">Cabezal</span>
+                    {p.cabezal ? <span><span className="matricula">{p.cabezal.placa}</span></span> : <span className="vacio">Sin cabezal</span>}
+                  </div>
+                  <div className="dato">
+                    <span className="dato-tipo">TC</span>
+                    {p.tc ? <span><span className="matricula">{p.tc.placa}</span></span> : <span className="vacio">Sin TC</span>}
+                  </div>
+                </div>
+                <div className="unidad-lado">
+                  {cerrada ? <span className="insignia ok">Cerrada, PDF guardado</span> : <span className="insignia">Abierta</span>}
+                  <div className="acciones fin">
                     {cerrada ? (
                       <>
-                        <button className="chico" onClick={() => verPdf(a.pdfKey)}>Ver PDF</button>
                         <button className="sec chico" disabled={!!ocupado} onClick={() => reabrir(a)}>Reabrir</button>
+                        <button className="chico" onClick={() => verPdf(a.pdfKey)}>Ver PDF</button>
                       </>
                     ) : (
                       <>
-                        <button className="sec chico" disabled={!!editando} onClick={() => setEditando(a)}>Cambiar</button>
-                        <button className="sec chico" disabled={!!ocupado} onClick={() => vistaPrevia(a)}>Vista previa</button>
-                        <button className="chico" disabled={!!ocupado} onClick={() => cerrarUnidad(a)}>Cerrar</button>
                         <button className="peligro chico" disabled={!!ocupado} onClick={() => quitar(a)}>Quitar</button>
+                        <button className="sec chico" disabled={!!editando} onClick={() => setEditando(a)}>Cambiar piezas</button>
+                        <button className="sec chico" disabled={!!ocupado} onClick={() => vistaPrevia(a)}>Vista previa</button>
+                        <button className="chico" disabled={!!ocupado} onClick={() => cerrarUnidad(a)}>Cerrar y guardar PDF</button>
                       </>
                     )}
-                  </div></td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
     </>
   );
 }

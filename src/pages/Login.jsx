@@ -4,6 +4,7 @@ import {
 } from 'firebase/auth';
 import { auth } from '../firebase';
 import { recordarNombre } from '../lib/acceso';
+import AccesoMarco from '../components/AccesoMarco';
 
 const MENSAJES = {
   'auth/invalid-credential': 'Correo o contraseña incorrectos',
@@ -64,10 +65,14 @@ export default function Login() {
   }
 
   return (
-    <div className="centro">
-      <form className="tarjeta login" onSubmit={enviar}>
-        <h1>Expedientes de transporte</h1>
-        <p className="tenue">{registro ? 'Crear cuenta' : 'Entrar'}</p>
+    <AccesoMarco>
+      <form className="acceso-form" onSubmit={enviar}>
+        <div>
+          <h2>{registro ? 'Crear cuenta' : 'Entrar'}</h2>
+          <p className="tenue">
+            {registro ? 'Un administrador debe aprobarla antes de que puedas usarla.' : 'Con tu correo y contraseña del equipo.'}
+          </p>
+        </div>
         {registro && (
           <label>
             Nombre
@@ -99,14 +104,13 @@ export default function Login() {
         <button type="submit" disabled={enviando}>
           {enviando ? 'Un momento…' : registro ? 'Crear cuenta' : 'Entrar'}
         </button>
-        {registro && <p className="tenue">Un administrador debe aprobar tu cuenta antes de que puedas usarla.</p>}
-        <div className="acciones">
+        <div className="acceso-alterno">
           <button type="button" className="link" onClick={cambiarModo}>
             {registro ? 'Ya tengo cuenta' : 'Crear cuenta'}
           </button>
           {!registro && <button type="button" className="link" onClick={recuperar}>Olvidé mi contraseña</button>}
         </div>
       </form>
-    </div>
+    </AccesoMarco>
   );
 }
