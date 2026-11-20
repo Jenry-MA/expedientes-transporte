@@ -11,6 +11,10 @@
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"]
   },
+  // Bucket de R2 (fotos y PDF). Se usa para borrar; los links firmados usan las llaves S3.
+  "r2_buckets": [
+    { "binding": "BUCKET", "bucket_name": "transcadelga" }
+  ],
   // Conserva las variables puestas en el panel al desplegar desde GitHub.
   "keep_vars": true,
   "observability": { "enabled": true }

@@ -37,6 +37,11 @@ export async function firmar(env, key, method, segundos) {
 }
 
 export async function borrar(env, key) {
+  // Con el binding del bucket se borra directo, sin firmar la petición.
+  if (env.BUCKET) {
+    await env.BUCKET.delete(key);
+    return;
+  }
   const res = await cliente(env).fetch(urlObjeto(env, key), { method: 'DELETE' });
   if (!res.ok && res.status !== 404) throw new Error(`R2 respondió ${res.status} al borrar ${key}`);
 }

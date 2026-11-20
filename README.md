@@ -36,7 +36,7 @@ r2-cors.json                   política CORS del bucket
 
 ## 2. Cloudflare R2
 
-1. Crear bucket (por ejemplo `expedientes`). Dejarlo **privado** (sin dominio público ni r2.dev).
+1. Crear bucket (este proyecto usa `transcadelga`; si es otro, cambiar `bucket_name` en `wrangler.jsonc`). Dejarlo **privado** (sin dominio público ni r2.dev).
 2. **R2 → Manage API tokens → Create API token:** permiso *Object Read & Write*, limitado a ese bucket.
    Guardar Access Key ID, Secret Access Key y el Account ID **fuera del chat** (gestor de contraseñas).
 3. **Bucket → Settings → CORS policy:** pegar [`r2-cors.json`](r2-cors.json) cambiando `TU-SUBDOMINIO` por el
@@ -65,7 +65,7 @@ r2-cors.json                   política CORS del bucket
    |---|---|---|
    | `FIREBASE_PROJECT_ID` | texto | `tu-proyecto` |
    | `R2_ACCOUNT_ID` | texto | ID de la cuenta Cloudflare |
-   | `R2_BUCKET` | texto | `expedientes` |
+   | `R2_BUCKET` | texto | `transcadelga` |
    | `R2_ACCESS_KEY_ID` | **secreto** | del token de R2 |
    | `R2_SECRET_ACCESS_KEY` | **secreto** | del token de R2 |
 

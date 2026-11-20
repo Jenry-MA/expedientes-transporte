@@ -2,6 +2,6 @@
 # NUNCA subir este archivo a GitHub.
 FIREBASE_PROJECT_ID=tu-proyecto
 R2_ACCOUNT_ID=
-R2_BUCKET=expedientes
+R2_BUCKET=transcadelga
 R2_ACCESS_KEY_ID=
 R2_SECRET_ACCESS_KEY=
