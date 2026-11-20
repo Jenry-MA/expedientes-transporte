@@ -196,12 +196,16 @@ export default function OperacionPage() {
           <button onClick={() => setEditando('nueva')} disabled={!catalogoListo}>Agregar la primera unidad</button>
         </div>
       ) : (
-        <ol className="unidades">
+        <div className="unidades">
+        <div className="unidades-cab" aria-hidden="true">
+          <span>#</span><span>Piloto</span><span>Cabezal</span><span>TC</span><span />
+        </div>
+        <ol>
           {lista.map((a) => {
             const p = piezas(a);
             if (editando?.id === a.id) {
               return (
-                <li key={a.id}>
+                <li key={a.id} className="unidad-editando">
                   <UnidadEditor
                     operacionId={op.id}
                     asignacion={a}
@@ -237,16 +241,21 @@ export default function OperacionPage() {
                   </div>
                 </div>
                 <div className="unidad-lado">
-                  <div className="acciones fin">
-                    <button className="peligro chico" disabled={!!ocupado} onClick={() => quitar(a)}>Quitar</button>
-                    <button className="sec chico" disabled={!!editando} onClick={() => setEditando(a)}>Cambiar piezas</button>
-                    <button className="chico" disabled={!!ocupado} onClick={() => vistaPrevia(a)}>Ver PDF</button>
-                  </div>
+                  <button className="chico" disabled={!!ocupado} onClick={() => vistaPrevia(a)}>Ver PDF</button>
+                  <button className="sec chico" disabled={!!editando} onClick={() => setEditando(a)}>Cambiar</button>
+                  <button
+                    className="peligro chico icono"
+                    disabled={!!ocupado}
+                    onClick={() => quitar(a)}
+                    aria-label={`Quitar la unidad ${a.numero}`}
+                    title="Quitar unidad"
+                  >✕</button>
                 </div>
               </li>
             );
           })}
         </ol>
+        </div>
       )}
     </>
   );
