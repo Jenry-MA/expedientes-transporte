@@ -111,7 +111,7 @@ Abrir <http://localhost:5173>. Vite redirige `/api` al `wrangler dev` del puerto
 
 ## Cómo funciona
 
-- **Documentos:** cada piloto (Licencia frente y reverso), cabezal y TC (Tarjeta de circulación y Calcomanía) tiene una casilla por etiqueta
+- **Documentos:** cada piloto (Licencia frente y reverso), cabezal y TC (Tarjeta de circulación) tiene una casilla por etiqueta
   más «Otros documentos». Cada casilla acepta **imagen o PDF**:
   - Imagen: se abre la pantalla de recorte (girar, recortar o usar completa); luego se comprime
     (lado mayor 1600 px, JPEG 0.8) y se sube a `pilotos|cabezales|tcs/{id}/{docId}.jpg`.
@@ -120,6 +120,11 @@ Abrir <http://localhost:5173>. Vite redirige `/api` al `wrangler dev` del puerto
 - **Expediente (PDF):** solo los documentos, sin encabezado ni textos. Las imágenes van a todo lo ancho, una debajo
   de otra, y cada unidad empieza en hoja nueva; los PDF adjuntos se unen completos después de las imágenes de su
   unidad. Al pie de cada hoja: «Página X de N».
+- **Importar desde Excel** (`/importar`, botón en Pilotos, Cabezales y TC): carga muchos registros de una vez.
+  Usa la plantilla [`public/plantilla-registros.xlsx`](public/plantilla-registros.xlsx) (se regenera con
+  `python scripts/crear_plantilla.py`) o una tabla propia con títulos como Piloto, Licencia, Teléfono, Transporte,
+  Placa cabezal, Placa TC. Antes de guardar muestra qué es nuevo, qué se actualiza y qué ya existe. Pilotos se
+  reconocen por licencia (o nombre si no tienen), cabezales y TC por placa. Solo datos: los documentos van después.
 - **Transportes:** catálogo con solo el nombre (`transportes/{nombre normalizado}`). El campo Transportista de
   pilotos, cabezales y TC autocompleta desde ahí y permite agregar uno nuevo sin salir del formulario.
   Cambiar el nombre en el catálogo lo actualiza en todos los registros que lo usan.

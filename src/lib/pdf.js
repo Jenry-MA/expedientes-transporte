@@ -132,7 +132,7 @@ async function ensamblar(base, tramos) {
   }
 
   const total = final.getPageCount();
-  if (!total) throw new Error('No hay documentos para el PDF: sube las licencias, tarjetas o calcomanías primero.');
+  if (!total) throw new Error('No hay documentos para el PDF: sube las licencias o tarjetas de circulación primero.');
 
   const fuente = await final.embedFont(StandardFonts.Helvetica);
   final.getPages().forEach((page, i) => {

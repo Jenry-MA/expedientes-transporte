@@ -501,6 +501,23 @@ p.aviso:not(.error):not(.ok-fondo) {
 .visor-flecha { top: auto; bottom: 1rem; transform: none; width: 52px; height: 52px; }
 }
 
+/* ---------- Importar desde Excel ---------- */
+.soltar-excel {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+  border: 2px dashed var(--linea); border-radius: var(--r-hoja); background: var(--hoja); padding: 1.1rem 1.25rem; margin-bottom: 1rem;
+}
+.soltar-excel p { margin: 0; max-width: 60ch; }
+.soltar-excel.encima { border-style: solid; border-color: var(--senal-borde); background: var(--senal-suave); }
+.resumen-import { list-style: none; margin: 0 0 1rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem 1.5rem; }
+.tabla-wrap { overflow-x: auto; }
+.tabla-import { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.tabla-import th, .tabla-import td { text-align: left; vertical-align: top; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--linea-2); }
+.tabla-import th { font-size: 0.8rem; color: var(--tinta-2); font-weight: 600; background: var(--hoja-2); }
+.tabla-import td:first-child { color: var(--tinta-3); width: 3rem; }
+.tabla-import tr.con-error td { background: var(--peligro-suave); }
+.celda-estado { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem 0.4rem; }
+.chico { font-size: 0.78rem; display: block; width: 100%; }
+
 /* ---------- Prueba de almacenamiento ---------- */
 .pasos { list-style: none; padding: 0; margin: 0.75rem 0; display: flex; flex-direction: column; gap: 0.5rem; }
 .pasos li { display: flex; gap: 0.7rem; align-items: flex-start; }

@@ -6,8 +6,8 @@ import { etiquetasDe } from '../components/Documentos';
 
 const DESCRIPCION = {
   pilotos: 'Datos de cada piloto y su licencia, frente y reverso.',
-  cabezales: 'Cada cabezal con su placa, transportista, tarjeta de circulación y calcomanía.',
-  tcs: 'Cada TC con su placa, transportista, tarjeta de circulación y calcomanía.',
+  cabezales: 'Cada cabezal con su placa, transportista y tarjeta de circulación.',
+  tcs: 'Cada TC con su placa, transportista y tarjeta de circulación.',
 };
 
 export default function CatalogoPage() {
@@ -27,7 +27,10 @@ export default function CatalogoPage() {
           <h1>{cfg.titulo}</h1>
           <p className="tenue">{DESCRIPCION[tipo]}</p>
         </div>
-        <Link className="boton" to={`/catalogo/${tipo}/nuevo`}>Registrar {cfg.singular.toLowerCase()}</Link>
+        <div className="acciones">
+          <Link className="boton sec" to="/importar">Importar desde Excel</Link>
+          <Link className="boton" to={`/catalogo/${tipo}/nuevo`}>Registrar {cfg.singular.toLowerCase()}</Link>
+        </div>
       </div>
       <input
         className="buscador"

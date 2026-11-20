@@ -11,6 +11,7 @@ import OperacionesPage from './pages/OperacionesPage';
 import OperacionPage from './pages/OperacionPage';
 import UsuariosPage from './pages/UsuariosPage';
 import TransportesPage from './pages/TransportesPage';
+import ImportarPage from './pages/ImportarPage';
 
 function Aviso({ titulo, children, user }) {
   return (
@@ -68,6 +69,7 @@ export default function App() {
           <Route path="catalogo/:tipo" element={<CatalogoPage />} />
           <Route path="catalogo/:tipo/:id" element={<FichaPage />} />
           <Route path="transportes" element={<TransportesPage />} />
+          <Route path="importar" element={<ImportarPage />} />
           {esAdmin && <Route path="usuarios" element={<UsuariosPage yo={sesion.user.email.toLowerCase()} />} />}
           <Route path="*" element={<Navigate to="/operaciones" replace />} />
         </Route>
