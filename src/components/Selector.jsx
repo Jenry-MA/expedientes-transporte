@@ -70,7 +70,7 @@ export default function Selector({ tipo, items, valorId, onChange, usadoEn, abie
           <input
             type="search"
             autoFocus
-            placeholder={tipo === 'pilotos' ? 'Nombre, licencia o DPI…' : 'Placa…'}
+            placeholder={tipo === 'pilotos' ? 'Nombre o licencia…' : 'Placa…'}
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />

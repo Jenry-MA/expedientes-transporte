@@ -2,11 +2,13 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { fmtFecha } from '../lib/catalogo';
-import { useAsignaciones, useColeccion, useDocumento } from '../lib/db';
+import { fmtFecha, fmtViaje } from '../lib/catalogo';
+import { duplicarOperacion, useAsignaciones, useColeccion, useDocumento } from '../lib/db';
 import { abrirArchivo, abrirBlob, subirArchivo } from '../lib/api';
 import { pdfOperacion, pdfUnidad } from '../lib/pdf';
 import UnidadEditor from '../components/UnidadEditor';
+import OperacionForm from '../components/OperacionForm';
+import { copiarTabla } from '../lib/tabla';
 
 const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
 const indexar = (items) => Object.fromEntries((items || []).map((i) => [i.id, i]));
@@ -20,7 +22,9 @@ export default function OperacionPage() {
   const cabezales = useColeccion('cabezales').items;
   const tcs = useColeccion('tcs').items;
   const [editando, setEditando] = useState(null); // null | 'nueva' | asignación
-  const [editandoOp, setEditandoOp] = useState(null);
+  const [formOp, setFormOp] = useState(null); // null | 'editar' | 'duplicar'
+  const [copiarUnidades, setCopiarUnidades] = useState(true);
+  const [listo, setListo] = useState('');
   const [ocupado, setOcupado] = useState('');
   const [msg, setMsg] = useState('');
 
@@ -40,6 +44,7 @@ export default function OperacionPage() {
   async function tarea(texto, fn) {
     setOcupado(texto);
     setMsg('');
+    setListo('');
     try {
       await fn();
     } catch (e) {
@@ -79,16 +84,22 @@ export default function OperacionPage() {
       await updateDoc(doc(db, 'operaciones', op.id), { pdfKey: key, pdfEn: serverTimestamp() });
     });
 
-  const guardarOp = (e) => {
-    e.preventDefault();
-    tarea('Guardando…', async () => {
-      if (!editandoOp.barco.trim()) throw new Error('Falta el nombre del barco');
-      await updateDoc(doc(db, 'operaciones', op.id), {
-        barco: editandoOp.barco.trim(), fecha: editandoOp.fecha, notas: editandoOp.notas.trim(),
-      });
-      setEditandoOp(null);
-    });
+  const guardarOp = async (datos) => {
+    await updateDoc(doc(db, 'operaciones', op.id), datos);
+    setFormOp(null);
   };
+
+  const duplicar = async (datos) => {
+    const nuevoId = await duplicarOperacion(datos, copiarUnidades ? lista : []);
+    setFormOp(null);
+    navigate(`/operaciones/${nuevoId}`);
+  };
+
+  const copiar = () => tarea('Copiando…', async () => {
+    const filas = lista.map((a) => ({ numero: a.numero, ...piezas(a) }));
+    await copiarTabla(filas);
+    setListo(`Tabla copiada: ${plural(filas.length, 'unidad', 'unidades')}. Pégala en Excel, WhatsApp o un correo.`);
+  });
 
   const borrarOp = () => {
     if (lista.length) return setMsg('Quita primero todas las unidades para borrar la operación.');
@@ -99,36 +110,50 @@ export default function OperacionPage() {
     });
   };
 
-  const campoOp = (name) => ({ value: editandoOp[name], onChange: (e) => setEditandoOp({ ...editandoOp, [name]: e.target.value }) });
 
   return (
     <>
       <p className="migas"><Link to="/operaciones">← Operaciones</Link></p>
 
-      {editandoOp ? (
-        <form className="tarjeta form" onSubmit={guardarOp}>
-          <div className="campos">
-            <label>Barco *<input {...campoOp('barco')} required /></label>
-            <label>Fecha *<input type="date" {...campoOp('fecha')} required /></label>
-            <label className="ancho">Notas<textarea rows={2} {...campoOp('notas')} /></label>
-          </div>
-          <div className="acciones">
-            <button type="submit">Guardar</button>
-            <button type="button" className="sec" onClick={() => setEditandoOp(null)}>Cancelar</button>
-            <button type="button" className="peligro" onClick={borrarOp}>Borrar operación</button>
-          </div>
-        </form>
+      {formOp === 'editar' ? (
+        <OperacionForm
+          titulo="Editar operación"
+          inicial={{ barco: op.barco, viaje: op.viaje || '', fecha: op.fecha, notas: op.notas || '' }}
+          textoBoton="Guardar cambios"
+          onGuardar={guardarOp}
+          onCancelar={() => setFormOp(null)}
+          extra={<button type="button" className="peligro" onClick={borrarOp}>Borrar operación</button>}
+        />
+      ) : formOp === 'duplicar' ? (
+        <OperacionForm
+          titulo={`Duplicar ${op.barco}${op.viaje ? ` ${fmtViaje(op.viaje)}` : ''}`}
+          inicial={{ barco: op.barco, viaje: '', fecha: '', notas: op.notas || '' }}
+          textoBoton="Crear copia"
+          onGuardar={duplicar}
+          onCancelar={() => setFormOp(null)}
+        >
+          {lista.length > 0 && (
+            <label className="casilla-check">
+              <input type="checkbox" checked={copiarUnidades} onChange={(e) => setCopiarUnidades(e.target.checked)} />
+              <span>
+                Copiar las {plural(lista.length, 'unidad', 'unidades')} con sus mismos pilotos, cabezales y TC
+                <span className="tenue"> (después puedes cambiar las piezas que no se repitan)</span>
+              </span>
+            </label>
+          )}
+        </OperacionForm>
       ) : (
         <div className="barco-cabecera">
           <div>
-            <h1>{op.barco}</h1>
+            <h1>{op.barco}{op.viaje && <span className="viaje"> {fmtViaje(op.viaje)}</span>}</h1>
             <p className="tenue">
-              {fmtFecha(op.fecha)}, {plural(lista.length, 'unidad', 'unidades')}
+              ETA {fmtFecha(op.fecha)}, {plural(lista.length, 'unidad', 'unidades')}
             </p>
             {op.notas && <p className="tenue">{op.notas}</p>}
           </div>
           <div className="acciones">
-            <button className="sec" onClick={() => setEditandoOp({ barco: op.barco, fecha: op.fecha, notas: op.notas || '' })}>Editar datos</button>
+            <button className="sec" onClick={() => setFormOp('editar')}>Editar datos</button>
+            <button className="sec" onClick={() => { setCopiarUnidades(true); setFormOp('duplicar'); }}>Duplicar</button>
             <button className="sec" disabled={!!ocupado || !lista.length || !catalogoListo} onClick={() => vistaPrevia(null)}>Vista previa</button>
             {op.pdfKey && <button className="sec" onClick={() => verPdf(op.pdfKey)}>Ver PDF guardado</button>}
             <button disabled={!!ocupado || !lista.length || !catalogoListo} onClick={guardarPdfOperacion}>
@@ -140,10 +165,16 @@ export default function OperacionPage() {
 
       {ocupado && <p className="aviso">{ocupado}</p>}
       {msg && <p className="aviso error">{msg}</p>}
+      {listo && <p className="ok-fondo">{listo}</p>}
 
       <div className="barra-unidades">
         <h2>Unidades</h2>
-        {!editando && <button onClick={() => setEditando('nueva')} disabled={!catalogoListo}>Agregar unidad</button>}
+        <div className="acciones">
+          {lista.length > 0 && (
+            <button className="sec" disabled={!!ocupado || !catalogoListo} onClick={copiar}>Copiar tabla</button>
+          )}
+          {!editando && <button onClick={() => setEditando('nueva')} disabled={!catalogoListo}>Agregar unidad</button>}
+        </div>
       </div>
 
       {editando === 'nueva' && (

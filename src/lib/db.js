@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   addDoc, collection, doc, getDocs, limit, onSnapshot, query, runTransaction,
-  serverTimestamp, setDoc, updateDoc, where,
+  serverTimestamp, setDoc, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { CAMPO_ASIG, TIPOS, compactar } from './catalogo';
@@ -82,14 +82,37 @@ export async function estaEnUso(tipo, id) {
   return !snap.empty;
 }
 
-export async function crearOperacion({ barco, fecha, notas }) {
+export async function crearOperacion({ barco, viaje = '', fecha, notas }) {
   if (!barco.trim()) throw new Error('Falta el nombre del barco');
-  if (!fecha) throw new Error('Falta la fecha');
+  if (!fecha) throw new Error('Falta la ETA');
   const ref = await addDoc(collection(db, 'operaciones'), {
-    barco: barco.trim(), fecha, notas: notas.trim(), ultimoNumero: 0, pdfKey: null,
+    barco: barco.trim(), viaje, fecha, notas: notas.trim(), ultimoNumero: 0, pdfKey: null,
     creadoPor: quien(), creadoEn: serverTimestamp(),
   });
   return ref.id;
+}
+
+/**
+ * Crea una operación nueva con los datos dados y, si se pide, una copia de sus unidades
+ * (mismos pilotos, cabezales y TC, numeradas 1, 2, 3…). Devuelve el id nuevo.
+ */
+export async function duplicarOperacion(datos, asignaciones = []) {
+  const opRef = doc(collection(db, 'operaciones'));
+  const unidades = [...asignaciones].sort((a, b) => a.numero - b.numero);
+  const batch = writeBatch(db);
+  batch.set(opRef, {
+    ...datos, ultimoNumero: unidades.length, pdfKey: null,
+    creadoPor: quien(), creadoEn: serverTimestamp(),
+  });
+  unidades.forEach((a, i) => {
+    batch.set(doc(collection(db, 'asignaciones')), {
+      operacionId: opRef.id, numero: i + 1,
+      pilotoId: a.pilotoId || null, cabezalId: a.cabezalId || null, tcId: a.tcId || null,
+      pdfKey: null, creadoPor: quien(), creadoEn: serverTimestamp(),
+    });
+  });
+  await batch.commit();
+  return opRef.id;
 }
 
 /** Nueva unidad con número consecutivo (transacción: dos usuarios no repiten número). */

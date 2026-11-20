@@ -305,6 +305,18 @@ p.aviso:not(.error):not(.ok-fondo) {
 }
 .fecha-bloque .dia { display: block; font-family: var(--display); font-size: 1.55rem; font-weight: 700; line-height: 1.15; }
 .fecha-bloque .mes { display: block; font-size: 0.72rem; font-weight: 600; background: var(--casco); color: #fff; padding: 0.1rem 0; }
+.viaje { font-weight: 500; color: var(--tinta-2); }
+.con-prefijo { display: flex; align-items: stretch; }
+.con-prefijo > span {
+  display: grid; place-items: center; padding: 0 0.7rem; font-weight: 600; color: var(--tinta-2);
+  background: var(--hoja-2); border: 1px solid var(--linea); border-right: none; border-radius: var(--r-control) 0 0 var(--r-control);
+}
+.con-prefijo input { border-radius: 0 var(--r-control) var(--r-control) 0; }
+.casilla-check {
+  flex-direction: row; align-items: flex-start; gap: 0.6rem; color: var(--tinta); font-size: 0.95rem;
+  background: var(--hoja-2); border: 1px solid var(--linea-2); border-radius: var(--r-control); padding: 0.7rem 0.8rem; margin-bottom: 1rem;
+}
+.casilla-check input { width: 20px; height: 20px; min-height: 0; margin: 0.1rem 0 0; flex: none; accent-color: var(--casco); }
 .barco-nombre { font-family: var(--display); font-size: 1.35rem; font-weight: 600; line-height: 1.1; }
 .barco-info { display: flex; flex-direction: column; gap: 0.1rem; flex: 1; min-width: 10rem; }
 

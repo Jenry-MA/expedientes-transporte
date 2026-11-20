@@ -53,7 +53,7 @@ function encabezado(doc, op, subtitulo) {
   }
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
-  doc.text(`Barco: ${op.barco}    Fecha: ${fmtFecha(op.fecha)}`, M, M + 11);
+  doc.text(`Barco: ${op.barco}${op.viaje ? `  V. ${op.viaje}` : ''}    ETA: ${fmtFecha(op.fecha)}`, M, M + 11);
   if (subtitulo) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
@@ -85,7 +85,7 @@ function bloqueDatos(doc, x, y, w, titulo, filas) {
 }
 
 const datosPiloto = (p) => p
-  ? [['Nombre', p.nombre], ['Licencia', p.licencia], ['DPI', p.dpi], ['Teléfono', p.telefono], ['Transportista', p.transportista]]
+  ? [['Nombre', p.nombre], ['Licencia', p.licencia], ['Teléfono', p.telefono], ['Transportista', p.transportista]]
   : [['', 'Sin asignar']];
 const datosVehiculo = (v) => v
   ? [['Placa', v.placa], ['Transportista', v.transportista], ...(v.notas ? [['Notas', v.notas]] : [])]

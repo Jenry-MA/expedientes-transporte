@@ -18,7 +18,7 @@ export default function CatalogoPage() {
   if (!cfg) return <Navigate to="/catalogo/pilotos" replace />;
 
   const lista = filtrar(items, q, tipo);
-  const pista = tipo === 'pilotos' ? 'nombre, licencia, DPI o transportista' : 'placa o transportista';
+  const pista = tipo === 'pilotos' ? 'nombre, licencia o transportista' : 'placa o transportista';
 
   return (
     <>

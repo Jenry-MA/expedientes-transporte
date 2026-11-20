@@ -106,7 +106,7 @@ function Archivo({ d, etiquetas, onBorrar, onEtiqueta, onError }) {
 }
 
 /**
- * Documentos de un piloto / cabezal / TC: una casilla por etiqueta (Licencia, DPI, Tarjeta…),
+ * Documentos de un piloto / cabezal / TC: una casilla por etiqueta (Licencia, Tarjeta, Calcomanía…),
  * cada una acepta imagen (con recorte) o PDF. Todo se guarda en R2 y se usa en el expediente.
  */
 export default function Documentos({ tipo, id, docs = [], compacto = false, onCambiar, onOcupado }) {

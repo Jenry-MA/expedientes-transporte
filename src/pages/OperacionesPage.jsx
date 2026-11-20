@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { fmtFecha, hoyISO, normalizar } from '../lib/catalogo';
+import { fmtFecha, fmtViaje, hoyISO, normalizar } from '../lib/catalogo';
 import { crearOperacion, useColeccion } from '../lib/db';
+import OperacionForm from '../components/OperacionForm';
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
@@ -20,26 +21,14 @@ export default function OperacionesPage() {
   const navigate = useNavigate();
   const { items, error } = useColeccion('operaciones');
   const [q, setQ] = useState('');
-  const [form, setForm] = useState(null);
-  const [msg, setMsg] = useState('');
+  const [form, setForm] = useState(false);
 
   const lista = (items || [])
-    .filter((o) => !q || normalizar(o.barco).includes(normalizar(q)) || fmtFecha(o.fecha).includes(q))
+    .filter((o) => !q || normalizar(`${o.barco} ${fmtViaje(o.viaje)}`).includes(normalizar(q)) || fmtFecha(o.fecha).includes(q))
     .sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
 
-  async function crear(e) {
-    e.preventDefault();
-    setMsg('');
-    try {
-      const id = await crearOperacion(form);
-      navigate(`/operaciones/${id}`);
-    } catch (err) {
-      setMsg(err.message);
-    }
-  }
-
-  const nueva = () => setForm({ barco: '', fecha: hoyISO(), notas: '' });
-  const campo = (name) => ({ value: form[name], onChange: (e) => setForm({ ...form, [name]: e.target.value }) });
+  const crear = async (datos) => navigate(`/operaciones/${await crearOperacion(datos)}`);
+  const nueva = () => setForm(true);
 
   return (
     <>
@@ -52,22 +41,16 @@ export default function OperacionesPage() {
       </div>
 
       {form && (
-        <form className="tarjeta form" onSubmit={crear}>
-          <h3>Nueva operación</h3>
-          <div className="campos">
-            <label>Barco *<input {...campo('barco')} required autoFocus /></label>
-            <label>Fecha *<input type="date" {...campo('fecha')} required /></label>
-            <label className="ancho">Notas<textarea rows={2} {...campo('notas')} /></label>
-          </div>
-          {msg && <p className="aviso error">{msg}</p>}
-          <div className="acciones">
-            <button type="submit">Crear operación</button>
-            <button type="button" className="sec" onClick={() => setForm(null)}>Cancelar</button>
-          </div>
-        </form>
+        <OperacionForm
+          titulo="Nueva operación"
+          inicial={{ fecha: hoyISO() }}
+          textoBoton="Crear operación"
+          onGuardar={crear}
+          onCancelar={() => setForm(false)}
+        />
       )}
 
-      <input className="buscador" type="search" placeholder="Buscar por barco o fecha…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <input className="buscador" type="search" placeholder="Buscar por barco, viaje o ETA…" value={q} onChange={(e) => setQ(e.target.value)} />
       {error && <p className="aviso error">{error.message}</p>}
       {items === null ? (
         <p className="tenue">Cargando…</p>
@@ -87,8 +70,8 @@ export default function OperacionesPage() {
               <Link to={`/operaciones/${o.id}`}>
                 <FechaBloque iso={o.fecha} />
                 <span className="barco-info">
-                  <span className="barco-nombre">{o.barco}</span>
-                  <span className="tenue">{fmtFecha(o.fecha)}</span>
+                  <span className="barco-nombre">{o.barco}{o.viaje && <span className="viaje"> {fmtViaje(o.viaje)}</span>}</span>
+                  <span className="tenue">ETA {fmtFecha(o.fecha)}</span>
                 </span>
                 {o.pdfKey && <span className="insignia ok">PDF guardado</span>}
               </Link>

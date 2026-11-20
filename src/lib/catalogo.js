@@ -6,14 +6,13 @@ export const TIPOS = {
     campos: [
       { name: 'nombre', label: 'Nombre completo', requerido: true },
       { name: 'licencia', label: 'No. de licencia' },
-      { name: 'dpi', label: 'DPI' },
       { name: 'telefono', label: 'Teléfono', type: 'tel' },
       { name: 'transportista', label: 'Transportista', transporte: true },
     ],
     etiquetas: ['Licencia (frente)', 'Licencia (reverso)', 'Otro'],
-    busqueda: ['nombre', 'licencia', 'dpi', 'telefono', 'transportista'],
+    busqueda: ['nombre', 'licencia', 'telefono', 'transportista'],
     resumen: (p) => p.nombre,
-    detalle: (p) => [p.licencia && `Lic. ${p.licencia}`, p.dpi && `DPI ${p.dpi}`, p.transportista].filter(Boolean).join(', '),
+    detalle: (p) => [p.licencia && `Lic. ${p.licencia}`, p.transportista].filter(Boolean).join(', '),
   },
   cabezales: {
     titulo: 'Cabezales',
@@ -70,6 +69,10 @@ export function fmtFecha(iso) {
   const [y, m, d] = String(iso).split('-');
   return d ? `${d}/${m}/${y}` : iso;
 }
+
+/** "V. 045", "v045", "V 45" -> "045" / "45": se guarda sin el prefijo. */
+export const limpiarViaje = (v) => String(v ?? '').trim().replace(/^v(?:\.\s*|\s+|(?=\d))/i, '').trim();
+export const fmtViaje = (v) => (limpiarViaje(v) ? `V. ${limpiarViaje(v)}` : '');
 
 export const hoyISO = () => {
   const d = new Date();
