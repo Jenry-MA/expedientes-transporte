@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  addDoc, collection, doc, getDocs, limit, onSnapshot, query, runTransaction,
+  addDoc, collection, doc, getDocs, limit, onSnapshot, query,
   serverTimestamp, setDoc, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
@@ -91,63 +91,98 @@ export async function crearOperacion({ barco, viaje = '', fecha, notas }) {
   if (!barco.trim()) throw new Error('Falta el nombre del barco');
   if (!fecha) throw new Error('Falta la ETA');
   const ref = await addDoc(collection(db, 'operaciones'), {
-    barco: barco.trim(), viaje, fecha, notas: notas.trim(), ultimoNumero: 0, pdfKey: null,
+    barco: barco.trim(), viaje, fecha, notas: notas.trim(), listas: [{ id: LISTA_PRINCIPAL, nombre: 'Listado 1' }], pdfKey: null,
     creadoPor: quien(), creadoEn: serverTimestamp(),
   });
   return ref.id;
 }
 
+// ---------- Listados de una operación ----------
+// Un barco puede tener varios listados de permisos. La operación guarda `listas: [{ id, nombre }]`
+// y cada unidad su `listaId`. Las operaciones viejas (sin `listas`) tienen un solo «Listado 1»
+// y sus unidades sin `listaId` pertenecen a él.
+
+export const LISTA_PRINCIPAL = 'principal';
+export const listasDe = (op) => (op?.listas?.length ? op.listas : [{ id: LISTA_PRINCIPAL, nombre: 'Listado 1' }]);
+export const listaDe = (a) => a.listaId || LISTA_PRINCIPAL;
+const idCorto = () => crypto.randomUUID().replace(/-/g, '').slice(0, 10);
+
+export async function agregarListado(op, nombre) {
+  nombre = String(nombre || '').trim();
+  const listas = listasDe(op);
+  if (!nombre) nombre = `Listado ${listas.length + 1}`;
+  const nueva = { id: idCorto(), nombre };
+  await updateDoc(doc(db, 'operaciones', op.id), { listas: [...listas, nueva] });
+  return nueva.id;
+}
+
+export async function renombrarListado(op, listaId, nombre) {
+  nombre = String(nombre || '').trim();
+  if (!nombre) throw new Error('Escribe el nombre del listado');
+  await updateDoc(doc(db, 'operaciones', op.id), {
+    listas: listasDe(op).map((l) => (l.id === listaId ? { ...l, nombre } : l)),
+  });
+}
+
+/** Borra el listado y sus unidades. Siempre queda al menos un listado. */
+export async function borrarListado(op, listaId, unidades) {
+  const quedan = listasDe(op).filter((l) => l.id !== listaId);
+  if (!quedan.length) throw new Error('La operación necesita al menos un listado');
+  const batch = writeBatch(db);
+  unidades.forEach((a) => batch.delete(doc(db, 'asignaciones', a.id)));
+  batch.update(doc(db, 'operaciones', op.id), { listas: quedan });
+  await batch.commit();
+}
+
 /**
- * Crea una operación nueva con los datos dados y, si se pide, una copia de sus unidades
- * (mismos pilotos, cabezales y TC, numeradas 1, 2, 3…). Devuelve el id nuevo.
+ * Crea una operación nueva con los datos dados y, si se pide, copia todos sus listados
+ * con sus unidades (mismos pilotos, cabezales y TC, numeradas 1, 2, 3… en cada listado).
  */
-export async function duplicarOperacion(datos, asignaciones = []) {
+export async function duplicarOperacion(datos, op, asignaciones = [], copiar = true) {
   const opRef = doc(collection(db, 'operaciones'));
-  const unidades = [...asignaciones].sort((a, b) => a.numero - b.numero);
+  const listas = copiar ? listasDe(op) : [{ id: LISTA_PRINCIPAL, nombre: 'Listado 1' }];
   const batch = writeBatch(db);
   batch.set(opRef, {
-    ...datos, ultimoNumero: unidades.length, pdfKey: null,
+    ...datos, listas, pdfKey: null,
     creadoPor: quien(), creadoEn: serverTimestamp(),
   });
-  unidades.forEach((a, i) => {
-    batch.set(doc(collection(db, 'asignaciones')), {
-      operacionId: opRef.id, numero: i + 1,
-      pilotoId: a.pilotoId || null, cabezalId: a.cabezalId || null, tcId: a.tcId || null,
-      pdfKey: null, creadoPor: quien(), creadoEn: serverTimestamp(),
-    });
-  });
+  if (copiar) {
+    for (const l of listas) {
+      asignaciones.filter((a) => listaDe(a) === l.id).sort((a, b) => a.numero - b.numero).forEach((a, i) => {
+        batch.set(doc(collection(db, 'asignaciones')), {
+          operacionId: opRef.id, listaId: l.id, numero: i + 1,
+          pilotoId: a.pilotoId || null, cabezalId: a.cabezalId || null, tcId: a.tcId || null,
+          pdfKey: null, creadoPor: quien(), creadoEn: serverTimestamp(),
+        });
+      });
+    }
+  }
   await batch.commit();
   return opRef.id;
 }
 
 /**
- * Deja las unidades numeradas 1, 2, 3… sin huecos (por ejemplo después de quitar una).
+ * Deja las unidades de UN listado numeradas 1, 2, 3… sin huecos ni repetidos.
  * `quitarId`: unidad que se borra en el mismo lote. Solo escribe las que cambian.
  */
-export async function renumerarUnidades(operacionId, asignaciones, quitarId = null) {
-  const quedan = [...asignaciones].filter((a) => a.id !== quitarId).sort((a, b) => a.numero - b.numero);
+export async function renumerarUnidades(unidadesDeLista, quitarId = null) {
+  const quedan = [...unidadesDeLista].filter((a) => a.id !== quitarId).sort((a, b) => a.numero - b.numero);
   const batch = writeBatch(db);
   if (quitarId) batch.delete(doc(db, 'asignaciones', quitarId));
   quedan.forEach((a, i) => {
     if (a.numero !== i + 1) batch.update(doc(db, 'asignaciones', a.id), { numero: i + 1 });
   });
-  batch.update(doc(db, 'operaciones', operacionId), { ultimoNumero: quedan.length });
   await batch.commit();
 }
 
-/** Nueva unidad con número consecutivo (transacción: dos usuarios no repiten número). */
-export async function crearAsignacion(operacionId, piezas) {
-  const opRef = doc(db, 'operaciones', operacionId);
-  const nueva = doc(collection(db, 'asignaciones'));
-  await runTransaction(db, async (tx) => {
-    const op = await tx.get(opRef);
-    if (!op.exists()) throw new Error('La operación ya no existe');
-    const numero = (op.data().ultimoNumero || 0) + 1;
-    tx.update(opRef, { ultimoNumero: numero });
-    tx.set(nueva, {
-      operacionId, numero, ...piezas, pdfKey: null,
-      creadoPor: quien(), creadoEn: serverTimestamp(),
-    });
+/**
+ * Nueva unidad al final del listado. Si dos personas agregan a la vez y se repite
+ * el número, la pantalla de la operación lo corrige sola (renumerarUnidades).
+ */
+export async function crearAsignacion(operacionId, piezas, { listaId = LISTA_PRINCIPAL, numero = 1 } = {}) {
+  const ref = await addDoc(collection(db, 'asignaciones'), {
+    operacionId, listaId, numero, ...piezas, pdfKey: null,
+    creadoPor: quien(), creadoEn: serverTimestamp(),
   });
-  return nueva.id;
+  return ref.id;
 }

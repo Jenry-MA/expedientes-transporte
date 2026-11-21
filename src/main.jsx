@@ -2,6 +2,10 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './styles.css';
+import { aplicarTema, leerTema } from './lib/tema';
+
+// Tema guardado (claro / oscuro / automático) antes de dibujar, para que no parpadee.
+aplicarTema(leerTema());
 
 // Cada despliegue cambia el nombre de los archivos que se cargan a pedido (por ejemplo el que arma el PDF).
 // Si esta pestaña se abrió antes de una versión nueva, esos archivos viejos ya no existen:

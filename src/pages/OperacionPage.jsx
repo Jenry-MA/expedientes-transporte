@@ -1,16 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { fmtFecha, fmtTelefono, fmtViaje, problemasDe, telHref } from '../lib/catalogo';
-import { duplicarOperacion, renumerarUnidades, useAsignaciones, useColeccion, useDocumento } from '../lib/db';
-import { abrirArchivo, abrirBlob, subirArchivo } from '../lib/api';
+import {
+  agregarListado, borrarListado, duplicarOperacion, listaDe, listasDe, renombrarListado,
+  renumerarUnidades, useAsignaciones, useColeccion, useDocumento,
+} from '../lib/db';
+import { abrirBlob } from '../lib/api';
 import { pdfOperacion, pdfUnidad } from '../lib/pdf';
 import UnidadEditor from '../components/UnidadEditor';
 import OperacionForm from '../components/OperacionForm';
 import { copiarTabla } from '../lib/tabla';
 
 const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+const indexar = (items) => Object.fromEntries((items || []).map((i) => [i.id, i]));
 
 /** Avisos de la unidad en una línea debajo de la fila: «Piloto: …», «TC: …». Nada si está al día. */
 function AvisosUnidad({ p }) {
@@ -26,10 +30,10 @@ function AvisosUnidad({ p }) {
   );
 }
 
-/** Resumen arriba de la operación: cuántas unidades tienen documentos pendientes o vencidos. */
-function ResumenAvisos({ lista, piezas }) {
-  if (!lista.length) return null;
-  const niveles = lista.map((a) => {
+/** Cuántas unidades tienen documentos pendientes o vencidos. */
+function ResumenAvisos({ unidades, piezas }) {
+  if (!unidades.length) return null;
+  const niveles = unidades.map((a) => {
     const p = piezas(a);
     const todos = [...problemasDe('pilotos', p.piloto), ...problemasDe('cabezales', p.cabezal), ...problemasDe('tcs', p.tc)];
     return todos.some((x) => x.nivel === 'error') ? 'error' : todos.length ? 'aviso' : null;
@@ -40,11 +44,65 @@ function ResumenAvisos({ lista, piezas }) {
   return (
     <p className={`aviso-doc ${vencidas ? 'error' : 'aviso'}`}>
       {vencidas ? '⛔' : '⚠'} {plural(pendientes, 'unidad con', 'unidades con')} documentos pendientes
-      {vencidas ? ` (${plural(vencidas, 'con algo vencido', 'con algo vencido')})` : ''}
+      {vencidas ? ` (${vencidas} con algo vencido)` : ''}
     </p>
   );
 }
-const indexar = (items) => Object.fromEntries((items || []).map((i) => [i.id, i]));
+
+function FilaUnidad({ a, p, ocupado, editando, onPdf, onCambiar, onQuitar }) {
+  return (
+    <li className="unidad">
+      <div className="placa" aria-label={`Unidad ${a.numero}`}>{a.numero}</div>
+      <div className="unidad-datos">
+        <div className="dato">
+          <span className="dato-tipo">Piloto</span>
+          {p.piloto ? (
+            <span className="dato-piloto">
+              <Link className="enlace-pieza" to={`/catalogo/pilotos/${p.piloto.id}`} title={`Abrir ficha de ${p.piloto.nombre}`}>
+                <b>{p.piloto.nombre}</b>
+              </Link>
+              {p.piloto.telefono
+                ? <a className="telefono" href={telHref(p.piloto.telefono)}>Tel. {fmtTelefono(p.piloto.telefono)}</a>
+                : <span className="vacio">Sin teléfono</span>}
+            </span>
+          ) : <span className="vacio">Sin piloto</span>}
+        </div>
+        <div className="dato">
+          <span className="dato-tipo">Cabezal</span>
+          {p.cabezal ? (
+            <span className="dato-pieza">
+              <Link className="enlace-pieza" to={`/catalogo/cabezales/${p.cabezal.id}`} title="Abrir ficha del cabezal">
+                <span className="matricula">{p.cabezal.placa}</span>
+              </Link>
+            </span>
+          ) : <span className="vacio">Sin cabezal</span>}
+        </div>
+        <div className="dato">
+          <span className="dato-tipo">TC</span>
+          {p.tc ? (
+            <span className="dato-pieza">
+              <Link className="enlace-pieza" to={`/catalogo/tcs/${p.tc.id}`} title="Abrir ficha del TC">
+                <span className="matricula">{p.tc.placa}</span>
+              </Link>
+            </span>
+          ) : <span className="vacio">Sin TC</span>}
+        </div>
+      </div>
+      <AvisosUnidad p={p} />
+      <div className="unidad-lado">
+        <button className="chico" disabled={!!ocupado} onClick={onPdf}>Ver PDF</button>
+        <button className="sec chico" disabled={!!editando} onClick={onCambiar}>Cambiar</button>
+        <button
+          className="peligro chico icono"
+          disabled={!!ocupado}
+          onClick={onQuitar}
+          aria-label={`Quitar la unidad ${a.numero}`}
+          title="Quitar unidad"
+        >✕</button>
+      </div>
+    </li>
+  );
+}
 
 export default function OperacionPage() {
   const { id } = useParams();
@@ -54,7 +112,9 @@ export default function OperacionPage() {
   const pilotos = useColeccion('pilotos').items;
   const cabezales = useColeccion('cabezales').items;
   const tcs = useColeccion('tcs').items;
-  const [editando, setEditando] = useState(null); // null | 'nueva' | asignación
+  const [editando, setEditando] = useState(null); // null | { listaId, id: 'nueva' | id de la unidad }
+  const [renombrando, setRenombrando] = useState(null); // { id, nombre }
+  const [nuevoListado, setNuevoListado] = useState(null); // nombre en edición
   const [formOp, setFormOp] = useState(null); // null | 'editar' | 'duplicar'
   const [copiarUnidades, setCopiarUnidades] = useState(true);
   const [listo, setListo] = useState('');
@@ -67,23 +127,34 @@ export default function OperacionPage() {
   );
   const piezas = (a) => ({ piloto: mapas.pilotos[a.pilotoId], cabezal: mapas.cabezales[a.cabezalId], tc: mapas.tcs[a.tcId] });
 
-  // Si quedaron huecos en la numeración (unidades quitadas antes de este arreglo), se corrige solo.
-  const firma = (asignaciones || []).map((a) => `${a.id}:${a.numero}`).join(',');
+  const listas = listasDe(op);
+  const todas = asignaciones || [];
+  const deLista = (listaId) => todas.filter((a) => listaDe(a) === listaId);
+
+  // Numeración 1, 2, 3… sin huecos ni repetidos en cada listado; si no, se corrige sola (una vez por estado).
+  const firma = todas.map((a) => `${listaDe(a)}:${a.id}:${a.numero}`).join(',');
   const ultimaCorreccion = useRef('');
   useEffect(() => {
-    const hayHuecos = asignaciones?.some((a, i) => a.numero !== i + 1);
-    if (!hayHuecos || ultimaCorreccion.current === firma) return;
-    ultimaCorreccion.current = firma; // una sola vez por estado de la lista
-    renumerarUnidades(id, asignaciones).catch((e) => console.warn('No se pudo renumerar', e));
+    if (!asignaciones || ultimaCorreccion.current === firma) return;
+    ultimaCorreccion.current = firma;
+    const grupos = {};
+    asignaciones.forEach((a) => { (grupos[listaDe(a)] ||= []).push(a); });
+    Object.values(grupos).forEach((us) => {
+      if (us.some((a, i) => a.numero !== i + 1)) {
+        renumerarUnidades(us).catch((e) => console.warn('No se pudo renumerar', e));
+      }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firma, id]);
+  }, [firma]);
 
   if (cargando) return <p className="tenue">Cargando…</p>;
   if (error) return <p className="aviso error">{error.message}</p>;
   if (!op) return <p className="aviso">La operación no existe. <Link to="/operaciones">Volver</Link></p>;
 
-  const lista = asignaciones || [];
   const catalogoListo = pilotos && cabezales && tcs;
+  const nombreLista = (lid) => listas.find((l) => l.id === lid)?.nombre || 'otro listado';
+  // Para el PDF de toda la operación: un listado tras otro, cada uno en su orden.
+  const enOrden = listas.flatMap((l) => deLista(l.id));
 
   async function tarea(texto, fn) {
     setOcupado(texto);
@@ -101,20 +172,11 @@ export default function OperacionPage() {
     }
   }
 
-  const quitar = (a) => {
-    if (!confirm(`¿Quitar la unidad ${a.numero} de esta operación?`)) return;
-    // Se quita y las siguientes bajan un número: 1, 2, 3… sin huecos.
-    tarea('Quitando…', () => renumerarUnidades(op.id, lista, a.id));
-  };
-
-  const verPdf = (key) => abrirArchivo(key).catch((e) => setMsg(e.message));
-
-  const vistaPrevia = (a) => {
+  const verPdf = (generar) => {
     const ventana = window.open('', '_blank');
     tarea('Generando PDF…', async () => {
       try {
-        const blob = a ? await pdfUnidad(op, a, piezas(a)) : await pdfOperacion(op, lista, piezas);
-        abrirBlob(blob, ventana);
+        abrirBlob(await generar(), ventana);
       } catch (e) {
         ventana?.close();
         throw e;
@@ -122,14 +184,40 @@ export default function OperacionPage() {
     });
   };
 
-  const guardarPdfOperacion = () =>
-    tarea('Generando PDF de la operación (puede tardar)…', async () => {
-      if (!lista.length) throw new Error('La operación no tiene unidades');
-      const blob = await pdfOperacion(op, lista, piezas);
-      const key = `expedientes/${op.id}/operacion.pdf`;
-      await subirArchivo(key, blob, 'application/pdf');
-      await updateDoc(doc(db, 'operaciones', op.id), { pdfKey: key, pdfEn: serverTimestamp() });
+  const quitar = (a) => {
+    if (!confirm(`¿Quitar la unidad ${a.numero} de «${nombreLista(listaDe(a))}»?`)) return;
+    // Se quita y las siguientes bajan un número: 1, 2, 3… sin huecos.
+    tarea('Quitando…', () => renumerarUnidades(deLista(listaDe(a)), a.id));
+  };
+
+  const copiar = (l) => tarea('Copiando…', async () => {
+    const filas = deLista(l.id).map((a) => ({ numero: a.numero, ...piezas(a) }));
+    await copiarTabla(filas);
+    setListo(`«${l.nombre}» copiado: ${plural(filas.length, 'unidad', 'unidades')}. Pégalo en Excel, WhatsApp o un correo.`);
+  });
+
+  const crearListado = (e) => {
+    e.preventDefault();
+    tarea('Creando listado…', async () => {
+      const lid = await agregarListado(op, nuevoListado);
+      setNuevoListado(null);
+      setEditando({ listaId: lid, id: 'nueva' });
     });
+  };
+
+  const guardarNombre = (e) => {
+    e.preventDefault();
+    tarea('Guardando…', async () => {
+      await renombrarListado(op, renombrando.id, renombrando.nombre);
+      setRenombrando(null);
+    });
+  };
+
+  const eliminarListado = (l) => {
+    const n = deLista(l.id).length;
+    if (!confirm(`¿Borrar «${l.nombre}»${n ? ` y sus ${plural(n, 'unidad', 'unidades')}` : ''}? Los pilotos, cabezales y TC siguen en el catálogo.`)) return;
+    tarea('Borrando listado…', () => borrarListado(op, l.id, deLista(l.id)));
+  };
 
   const guardarOp = async (datos) => {
     await updateDoc(doc(db, 'operaciones', op.id), datos);
@@ -137,19 +225,13 @@ export default function OperacionPage() {
   };
 
   const duplicar = async (datos) => {
-    const nuevoId = await duplicarOperacion(datos, copiarUnidades ? lista : []);
+    const nuevoId = await duplicarOperacion(datos, op, todas, copiarUnidades);
     setFormOp(null);
     navigate(`/operaciones/${nuevoId}`);
   };
 
-  const copiar = () => tarea('Copiando…', async () => {
-    const filas = lista.map((a) => ({ numero: a.numero, ...piezas(a) }));
-    await copiarTabla(filas);
-    setListo(`Tabla copiada: ${plural(filas.length, 'unidad', 'unidades')}. Pégala en Excel, WhatsApp o un correo.`);
-  });
-
   const borrarOp = () => {
-    if (lista.length) return setMsg('Quita primero todas las unidades para borrar la operación.');
+    if (todas.length) return setMsg('Quita primero todas las unidades de todos los listados para borrar la operación.');
     if (!confirm(`¿Borrar la operación ${op.barco}?`)) return;
     tarea('Borrando…', async () => {
       await deleteDoc(doc(db, 'operaciones', op.id));
@@ -157,6 +239,19 @@ export default function OperacionPage() {
     });
   };
 
+  const editor = (listaId, a) => (
+    <UnidadEditor
+      key={a ? a.id : `nueva-${listaId}`}
+      operacionId={op.id}
+      listaId={listaId}
+      numeroNuevo={deLista(listaId).length + 1}
+      nombreLista={nombreLista}
+      asignacion={a}
+      asignaciones={todas}
+      catalogos={{ pilotos, cabezales, tcs }}
+      onListo={() => setEditando(null)}
+    />
+  );
 
   return (
     <>
@@ -179,12 +274,13 @@ export default function OperacionPage() {
           onGuardar={duplicar}
           onCancelar={() => setFormOp(null)}
         >
-          {lista.length > 0 && (
+          {todas.length > 0 && (
             <label className="casilla-check">
               <input type="checkbox" checked={copiarUnidades} onChange={(e) => setCopiarUnidades(e.target.checked)} />
               <span>
-                Copiar las {plural(lista.length, 'unidad', 'unidades')} con sus mismos pilotos, cabezales y TC
-                <span className="tenue"> (después puedes cambiar las piezas que no se repitan)</span>
+                Copiar {listas.length > 1 ? `los ${listas.length} listados` : 'el listado'} con sus{' '}
+                {plural(todas.length, 'unidad', 'unidades')} (mismos pilotos, cabezales y TC)
+                <span className="tenue"> — después puedes cambiar las piezas que no se repitan</span>
               </span>
             </label>
           )}
@@ -194,18 +290,21 @@ export default function OperacionPage() {
           <div>
             <h1>{op.barco}{op.viaje && <span className="viaje"> {fmtViaje(op.viaje)}</span>}</h1>
             <p className="tenue">
-              ETA {fmtFecha(op.fecha)}, {plural(lista.length, 'unidad', 'unidades')}
+              ETA {fmtFecha(op.fecha)}, {plural(todas.length, 'unidad', 'unidades')}
+              {listas.length > 1 && ` en ${listas.length} listados`}
             </p>
             {op.notas && <p className="tenue">{op.notas}</p>}
-            {catalogoListo && <ResumenAvisos lista={lista} piezas={piezas} />}
+            {catalogoListo && <ResumenAvisos unidades={todas} piezas={piezas} />}
           </div>
           <div className="acciones">
             <button className="sec" onClick={() => setFormOp('editar')}>Editar datos</button>
             <button className="sec" onClick={() => { setCopiarUnidades(true); setFormOp('duplicar'); }}>Duplicar</button>
-            <button className="sec" disabled={!!ocupado || !lista.length || !catalogoListo} onClick={() => vistaPrevia(null)}>Vista previa</button>
-            {op.pdfKey && <button className="sec" onClick={() => verPdf(op.pdfKey)}>Ver PDF guardado</button>}
-            <button disabled={!!ocupado || !lista.length || !catalogoListo} onClick={guardarPdfOperacion}>
-              {op.pdfKey ? 'Actualizar PDF de operación' : 'Guardar PDF de operación'}
+            <button
+              disabled={!!ocupado || !todas.length || !catalogoListo}
+              onClick={() => verPdf(() => pdfOperacion(op, enOrden, piezas))}
+              title={listas.length > 1 ? 'Todos los listados en un solo PDF' : undefined}
+            >
+              Ver PDF{listas.length > 1 ? ' completo' : ''}
             </button>
           </div>
         </div>
@@ -215,109 +314,104 @@ export default function OperacionPage() {
       {msg && <p className="aviso error">{msg}</p>}
       {listo && <p className="ok-fondo">{listo}</p>}
 
-      <div className="barra-unidades">
-        <h2>Unidades</h2>
-        <div className="acciones">
-          {lista.length > 0 && (
-            <button className="sec" disabled={!!ocupado || !catalogoListo} onClick={copiar}>Copiar tabla</button>
-          )}
-          {!editando && <button onClick={() => setEditando('nueva')} disabled={!catalogoListo}>Agregar unidad</button>}
-        </div>
-      </div>
-
-      {editando === 'nueva' && (
-        <UnidadEditor
-          key="nueva"
-          operacionId={op.id}
-          asignacion={null}
-          asignaciones={lista}
-          catalogos={{ pilotos, cabezales, tcs }}
-          onListo={() => setEditando(null)}
-        />
-      )}
-
-      {lista.length === 0 && editando !== 'nueva' ? (
-        <div className="lista-vacia">
-          <p>Este barco todavía no tiene unidades. Cada unidad junta un piloto, un cabezal y un TC.</p>
-          <button onClick={() => setEditando('nueva')} disabled={!catalogoListo}>Agregar la primera unidad</button>
-        </div>
-      ) : (
-        <div className="unidades">
-        <div className="unidades-cab" aria-hidden="true">
-          <span>#</span><span>Piloto</span><span>Cabezal</span><span>TC</span><span />
-        </div>
-        <ol>
-          {lista.map((a) => {
-            const p = piezas(a);
-            if (editando?.id === a.id) {
-              return (
-                <li key={a.id} className="unidad-editando">
-                  <UnidadEditor
-                    operacionId={op.id}
-                    asignacion={a}
-                    asignaciones={lista}
-                    catalogos={{ pilotos, cabezales, tcs }}
-                    onListo={() => setEditando(null)}
+      {listas.map((l) => {
+        const unidades = deLista(l.id);
+        const editandoAqui = editando?.listaId === l.id;
+        return (
+          <section key={l.id} className="listado">
+            <div className="barra-unidades">
+              {renombrando?.id === l.id ? (
+                <form className="form-linea en-fila" onSubmit={guardarNombre}>
+                  <input
+                    aria-label="Nombre del listado"
+                    value={renombrando.nombre}
+                    onChange={(e) => setRenombrando({ ...renombrando, nombre: e.target.value })}
+                    autoFocus
                   />
-                </li>
-              );
-            }
-            return (
-              <li key={a.id} className="unidad">
-                <div className="placa" aria-label={`Unidad ${a.numero}`}>{a.numero}</div>
-                <div className="unidad-datos">
-                  <div className="dato">
-                    <span className="dato-tipo">Piloto</span>
-                    {p.piloto ? (
-                      <span className="dato-piloto">
-                        <Link className="enlace-pieza" to={`/catalogo/pilotos/${p.piloto.id}`} title={`Abrir ficha de ${p.piloto.nombre}`}>
-                          <b>{p.piloto.nombre}</b>
-                        </Link>
-                        {p.piloto.telefono
-                          ? <a className="telefono" href={telHref(p.piloto.telefono)}>Tel. {fmtTelefono(p.piloto.telefono)}</a>
-                          : <span className="vacio">Sin teléfono</span>}
-                      </span>
-                    ) : <span className="vacio">Sin piloto</span>}
-                  </div>
-                  <div className="dato">
-                    <span className="dato-tipo">Cabezal</span>
-                    {p.cabezal ? (
-                      <span className="dato-pieza">
-                        <Link className="enlace-pieza" to={`/catalogo/cabezales/${p.cabezal.id}`} title="Abrir ficha del cabezal">
-                          <span className="matricula">{p.cabezal.placa}</span>
-                        </Link>
-                      </span>
-                    ) : <span className="vacio">Sin cabezal</span>}
-                  </div>
-                  <div className="dato">
-                    <span className="dato-tipo">TC</span>
-                    {p.tc ? (
-                      <span className="dato-pieza">
-                        <Link className="enlace-pieza" to={`/catalogo/tcs/${p.tc.id}`} title="Abrir ficha del TC">
-                          <span className="matricula">{p.tc.placa}</span>
-                        </Link>
-                      </span>
-                    ) : <span className="vacio">Sin TC</span>}
-                  </div>
+                  <button type="submit" className="chico">Guardar</button>
+                  <button type="button" className="sec chico" onClick={() => setRenombrando(null)}>Cancelar</button>
+                </form>
+              ) : (
+                <div className="listado-titulo">
+                  <h2>{l.nombre}</h2>
+                  <span className="tenue">{plural(unidades.length, 'unidad', 'unidades')}</span>
+                  <button className="link" onClick={() => setRenombrando({ id: l.id, nombre: l.nombre })}>Renombrar</button>
+                  {listas.length > 1 && (
+                    <button className="link peligro-link" onClick={() => eliminarListado(l)}>Borrar listado</button>
+                  )}
                 </div>
-                <AvisosUnidad p={p} />
-                <div className="unidad-lado">
-                  <button className="chico" disabled={!!ocupado} onClick={() => vistaPrevia(a)}>Ver PDF</button>
-                  <button className="sec chico" disabled={!!editando} onClick={() => setEditando(a)}>Cambiar</button>
-                  <button
-                    className="peligro chico icono"
-                    disabled={!!ocupado}
-                    onClick={() => quitar(a)}
-                    aria-label={`Quitar la unidad ${a.numero}`}
-                    title="Quitar unidad"
-                  >✕</button>
+              )}
+              <div className="acciones">
+                {unidades.length > 0 && (
+                  <>
+                    <button className="sec" disabled={!!ocupado || !catalogoListo} onClick={() => copiar(l)}>Copiar tabla</button>
+                    {listas.length > 1 && (
+                      <button className="sec" disabled={!!ocupado || !catalogoListo} onClick={() => verPdf(() => pdfOperacion(op, unidades, piezas))}>
+                        Ver PDF
+                      </button>
+                    )}
+                  </>
+                )}
+                {!editando && (
+                  <button onClick={() => setEditando({ listaId: l.id, id: 'nueva' })} disabled={!catalogoListo}>Agregar unidad</button>
+                )}
+              </div>
+            </div>
+
+            {editandoAqui && editando.id === 'nueva' && editor(l.id, null)}
+
+            {unidades.length === 0 ? (
+              !(editandoAqui && editando.id === 'nueva') && (
+                <div className="lista-vacia">
+                  <p>Este listado todavía no tiene unidades. Cada unidad junta un piloto, un cabezal y un TC.</p>
+                  <button onClick={() => setEditando({ listaId: l.id, id: 'nueva' })} disabled={!catalogoListo || !!editando}>
+                    Agregar la primera unidad
+                  </button>
                 </div>
-              </li>
-            );
-          })}
-        </ol>
-        </div>
-      )}
+              )
+            ) : (
+              <div className="unidades">
+                <div className="unidades-cab" aria-hidden="true">
+                  <span>#</span><span>Piloto</span><span>Cabezal</span><span>TC</span><span />
+                </div>
+                <ol>
+                  {unidades.map((a) => (editando?.id === a.id ? (
+                    <li key={a.id} className="unidad-editando">{editor(l.id, a)}</li>
+                  ) : (
+                    <FilaUnidad
+                      key={a.id}
+                      a={a}
+                      p={piezas(a)}
+                      ocupado={ocupado}
+                      editando={editando}
+                      onPdf={() => verPdf(() => pdfUnidad(op, a, piezas(a)))}
+                      onCambiar={() => setEditando({ listaId: l.id, id: a.id })}
+                      onQuitar={() => quitar(a)}
+                    />
+                  )))}
+                </ol>
+              </div>
+            )}
+          </section>
+        );
+      })}
+
+      <div className="nuevo-listado">
+        {nuevoListado === null ? (
+          <button className="sec" disabled={!!ocupado} onClick={() => setNuevoListado(`Listado ${listas.length + 1}`)}>
+            Agregar listado
+          </button>
+        ) : (
+          <form className="tarjeta form-linea" onSubmit={crearListado}>
+            <label>
+              Nombre del listado nuevo
+              <input value={nuevoListado} onChange={(e) => setNuevoListado(e.target.value)} autoFocus placeholder="Ej. Permisos portuaria, Listado naviera" />
+            </label>
+            <button type="submit" disabled={!!ocupado}>Crear listado</button>
+            <button type="button" className="sec" onClick={() => setNuevoListado(null)}>Cancelar</button>
+          </form>
+        )}
+      </div>
     </>
   );
 }

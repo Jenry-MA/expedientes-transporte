@@ -73,7 +73,6 @@ export default function OperacionesPage() {
                   <span className="barco-nombre">{o.barco}{o.viaje && <span className="viaje"> {fmtViaje(o.viaje)}</span>}</span>
                   <span className="tenue">ETA {fmtFecha(o.fecha)}</span>
                 </span>
-                {o.pdfKey && <span className="insignia ok">PDF guardado</span>}
               </Link>
             </li>
           ))}

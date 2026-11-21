@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
+import TemaBoton from './TemaBoton';
 import { IconoBarco, IconoCabezal, IconoPiloto, IconoTC, IconoTransporte, IconoUsuarios, Logo } from './Iconos';
 
 export default function Layout({ user, nombre, esAdmin }) {
@@ -39,13 +40,17 @@ export default function Layout({ user, nombre, esAdmin }) {
         <div className="riel-pie">
           <div className="quien">{nombre || user.displayName || user.email}</div>
           <div className="correo" title={user.email}>{user.email}</div>
+          <TemaBoton />
           <button className="link" onClick={salir}>Cerrar sesión</button>
         </div>
       </aside>
 
       <header className="cabecera-movil">
         {marca}
-        <button className="link" onClick={salir}>Salir</button>
+        <span className="acciones">
+          <TemaBoton corto />
+          <button className="link" onClick={salir}>Salir</button>
+        </span>
       </header>
 
       <main className="contenido">

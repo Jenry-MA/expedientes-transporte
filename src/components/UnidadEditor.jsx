@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { CAMPO_ASIG, TIPOS } from '../lib/catalogo';
-import { crearAsignacion } from '../lib/db';
+import { crearAsignacion, listaDe } from '../lib/db';
 import Selector from './Selector';
 
 const ORDEN = ['pilotos', 'cabezales', 'tcs'];
 
 /** Arma o cambia una unidad: piloto → cabezal → TC. */
-export default function UnidadEditor({ operacionId, asignacion, asignaciones, catalogos, onListo }) {
+export default function UnidadEditor({ operacionId, listaId, numeroNuevo, nombreLista = () => '', asignacion, asignaciones, catalogos, onListo }) {
   const [sel, setSel] = useState(() => ({
     pilotoId: asignacion?.pilotoId || null,
     cabezalId: asignacion?.cabezalId || null,
@@ -19,7 +19,10 @@ export default function UnidadEditor({ operacionId, asignacion, asignaciones, ca
   const [estado, setEstado] = useState({ guardando: false, error: '' });
 
   const otras = asignaciones.filter((a) => a.id !== asignacion?.id);
-  const usadoEn = (tipo) => (id) => otras.filter((a) => a[CAMPO_ASIG[tipo]] === id).map((a) => a.numero);
+  // Dónde más se usa la pieza en este barco: «3» (mismo listado) o «2 (Listado 2)».
+  const usadoEn = (tipo) => (id) => otras
+    .filter((a) => a[CAMPO_ASIG[tipo]] === id)
+    .map((a) => (listaDe(a) === listaId ? `${a.numero}` : `${a.numero} (${nombreLista(listaDe(a))})`));
 
   function elegir(tipo, id) {
     const nuevo = { ...sel, [CAMPO_ASIG[tipo]]: id };
@@ -51,7 +54,7 @@ export default function UnidadEditor({ operacionId, asignacion, asignaciones, ca
       if (asignacion) {
         await updateDoc(doc(db, 'asignaciones', asignacion.id), { ...sel, actualizadoEn: serverTimestamp() });
       } else {
-        await crearAsignacion(operacionId, sel);
+        await crearAsignacion(operacionId, sel, { listaId, numero: numeroNuevo });
       }
       onListo();
     } catch (e) {

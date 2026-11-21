@@ -132,7 +132,10 @@ Abrir <http://localhost:5173>. Vite redirige `/api` al `wrangler dev` del puerto
 - **Unidades:** número consecutivo por operación (transacción sobre `operaciones.ultimoNumero`). Si una pieza ya está
   en otra unidad del mismo barco se avisa antes de guardar.
 - **PDF de unidad:** *Ver PDF* lo genera al momento con los datos y documentos actuales; no se guarda.
-- **PDF de operación:** resumen + una página (o más) por unidad, en `expedientes/{operacionId}/operacion.pdf`.
+- **Listados:** una operación puede tener varios listados de permisos (`operaciones.listas: [{ id, nombre }]`;
+  cada unidad guarda `listaId`). Cada listado numera sus unidades 1, 2, 3… y tiene su propio Copiar tabla y Ver PDF;
+  «Ver PDF completo» junta todos. Duplicar una operación copia todos sus listados con sus unidades.
+- **Tema:** claro, oscuro o automático (según el sistema), desde el menú; se recuerda en cada navegador.
 - **Borrado:** no se puede borrar un piloto/cabezal/TC que aparezca en alguna operación.
 
 ## Respaldo
