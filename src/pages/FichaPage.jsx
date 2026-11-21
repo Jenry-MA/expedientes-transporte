@@ -7,6 +7,7 @@ import { estaEnUso, useDocumento } from '../lib/db';
 import { borrarArchivo } from '../lib/api';
 import EntidadForm from '../components/EntidadForm';
 import Documentos from '../components/Documentos';
+import Avisos from '../components/Avisos';
 
 export default function FichaPage() {
   const { tipo, id } = useParams();
@@ -46,6 +47,7 @@ export default function FichaPage() {
       ) : (
         <>
           <h1>{nuevo ? `Registrar ${cfg.singular.toLowerCase()}` : tipo === 'pilotos' ? cfg.resumen(data) : <span className="matricula grande">{cfg.resumen(data)}</span>}</h1>
+          {!nuevo && <div className="ficha-avisos"><Avisos tipo={tipo} entidad={data} alDia="Documentos al día" /></div>}
           <section className="tarjeta">
             <EntidadForm
               key={nuevo ? 'nuevo' : id}

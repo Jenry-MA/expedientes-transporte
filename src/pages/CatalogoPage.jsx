@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { TIPOS, filtrar } from '../lib/catalogo';
 import { useColeccion } from '../lib/db';
-import { etiquetasDe } from '../components/Documentos';
+import Avisos from '../components/Avisos';
 
 const DESCRIPCION = {
   pilotos: 'Datos de cada piloto y su licencia, frente y reverso.',
@@ -59,13 +59,7 @@ export default function CatalogoPage() {
               <Link to={`/catalogo/${tipo}/${it.id}`}>
                 {tipo === 'pilotos' ? <b>{cfg.resumen(it)}</b> : <span className="matricula">{cfg.resumen(it)}</span>}
                 <span className="tenue">{cfg.detalle(it)}</span>
-                {(() => {
-                  const docs = it.fotos || [];
-                  const faltan = etiquetasDe(tipo).filter((e) => !docs.some((d) => d.etiqueta === e)).length;
-                  return faltan
-                    ? <span className="insignia falta">Faltan {faltan} doc.</span>
-                    : <span className="insignia ok">{docs.length} doc. ✓</span>;
-                })()}
+                <Avisos tipo={tipo} entidad={it} alDia="Al día" />
               </Link>
             </li>
           ))}

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { TIPOS, filtrar } from '../lib/catalogo';
 import EntidadForm from './EntidadForm';
 import Documentos, { etiquetasDe } from './Documentos';
+import Avisos from './Avisos';
 
 /**
  * Elegir un piloto / cabezal / TC del catálogo, o registrarlo en el momento.
@@ -26,6 +27,7 @@ export default function Selector({ tipo, items, valorId, onChange, usadoEn, abie
             <>
               {tipo === 'pilotos' ? <b>{cfg.resumen(actual)}</b> : <span><span className="matricula">{cfg.resumen(actual)}</span></span>}
               <span className="tenue">{cfg.detalle(actual)}</span>
+              <Avisos tipo={tipo} entidad={actual} chico />
             </>
           ) : valorId ? (
             <span className="aviso">Registro borrado del catálogo</span>
@@ -82,6 +84,7 @@ export default function Selector({ tipo, items, valorId, onChange, usadoEn, abie
                   <button type="button" className={it.id === valorId ? 'elegido' : ''} onClick={() => { setQ(''); onChange(it.id); }}>
                     {tipo === 'pilotos' ? <b>{cfg.resumen(it)}</b> : <span className="matricula">{cfg.resumen(it)}</span>}
                     <span className="tenue">{cfg.detalle(it)}</span>
+                    <Avisos tipo={tipo} entidad={it} chico />
                     {usos.length > 0 && <span className="aviso">⚠ unidad {usos.join(', ')}</span>}
                   </button>
                 </li>

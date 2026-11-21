@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { fmtFecha, fmtTelefono, fmtViaje, telHref } from '../lib/catalogo';
-import { duplicarOperacion, useAsignaciones, useColeccion, useDocumento } from '../lib/db';
+import { fmtFecha, fmtTelefono, fmtViaje, problemasDe, telHref } from '../lib/catalogo';
+import { duplicarOperacion, renumerarUnidades, useAsignaciones, useColeccion, useDocumento } from '../lib/db';
 import { abrirArchivo, abrirBlob, subirArchivo } from '../lib/api';
 import { pdfOperacion, pdfUnidad } from '../lib/pdf';
 import UnidadEditor from '../components/UnidadEditor';
@@ -11,6 +11,39 @@ import OperacionForm from '../components/OperacionForm';
 import { copiarTabla } from '../lib/tabla';
 
 const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+
+/** Avisos de la unidad en una línea debajo de la fila: «Piloto: …», «TC: …». Nada si está al día. */
+function AvisosUnidad({ p }) {
+  const items = [['Piloto', 'pilotos', p.piloto], ['Cabezal', 'cabezales', p.cabezal], ['TC', 'tcs', p.tc]]
+    .flatMap(([nombre, tipo, e]) => problemasDe(tipo, e).map((x) => ({ ...x, texto: `${nombre}: ${x.texto}` })));
+  if (!items.length) return null;
+  return (
+    <div className="unidad-avisos">
+      {items.map((x) => (
+        <span key={x.texto} className={`aviso-doc ${x.nivel}`}>{x.nivel === 'error' ? '⛔' : '⚠'} {x.texto}</span>
+      ))}
+    </div>
+  );
+}
+
+/** Resumen arriba de la operación: cuántas unidades tienen documentos pendientes o vencidos. */
+function ResumenAvisos({ lista, piezas }) {
+  if (!lista.length) return null;
+  const niveles = lista.map((a) => {
+    const p = piezas(a);
+    const todos = [...problemasDe('pilotos', p.piloto), ...problemasDe('cabezales', p.cabezal), ...problemasDe('tcs', p.tc)];
+    return todos.some((x) => x.nivel === 'error') ? 'error' : todos.length ? 'aviso' : null;
+  });
+  const pendientes = niveles.filter(Boolean).length;
+  const vencidas = niveles.filter((x) => x === 'error').length;
+  if (!pendientes) return <p className="aviso-doc ok">Documentos al día en todas las unidades</p>;
+  return (
+    <p className={`aviso-doc ${vencidas ? 'error' : 'aviso'}`}>
+      {vencidas ? '⛔' : '⚠'} {plural(pendientes, 'unidad con', 'unidades con')} documentos pendientes
+      {vencidas ? ` (${plural(vencidas, 'con algo vencido', 'con algo vencido')})` : ''}
+    </p>
+  );
+}
 const indexar = (items) => Object.fromEntries((items || []).map((i) => [i.id, i]));
 
 export default function OperacionPage() {
@@ -33,6 +66,17 @@ export default function OperacionPage() {
     [pilotos, cabezales, tcs],
   );
   const piezas = (a) => ({ piloto: mapas.pilotos[a.pilotoId], cabezal: mapas.cabezales[a.cabezalId], tc: mapas.tcs[a.tcId] });
+
+  // Si quedaron huecos en la numeración (unidades quitadas antes de este arreglo), se corrige solo.
+  const firma = (asignaciones || []).map((a) => `${a.id}:${a.numero}`).join(',');
+  const ultimaCorreccion = useRef('');
+  useEffect(() => {
+    const hayHuecos = asignaciones?.some((a, i) => a.numero !== i + 1);
+    if (!hayHuecos || ultimaCorreccion.current === firma) return;
+    ultimaCorreccion.current = firma; // una sola vez por estado de la lista
+    renumerarUnidades(id, asignaciones).catch((e) => console.warn('No se pudo renumerar', e));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firma, id]);
 
   if (cargando) return <p className="tenue">Cargando…</p>;
   if (error) return <p className="aviso error">{error.message}</p>;
@@ -59,7 +103,8 @@ export default function OperacionPage() {
 
   const quitar = (a) => {
     if (!confirm(`¿Quitar la unidad ${a.numero} de esta operación?`)) return;
-    tarea('Quitando…', () => deleteDoc(doc(db, 'asignaciones', a.id)));
+    // Se quita y las siguientes bajan un número: 1, 2, 3… sin huecos.
+    tarea('Quitando…', () => renumerarUnidades(op.id, lista, a.id));
   };
 
   const verPdf = (key) => abrirArchivo(key).catch((e) => setMsg(e.message));
@@ -152,6 +197,7 @@ export default function OperacionPage() {
               ETA {fmtFecha(op.fecha)}, {plural(lista.length, 'unidad', 'unidades')}
             </p>
             {op.notas && <p className="tenue">{op.notas}</p>}
+            {catalogoListo && <ResumenAvisos lista={lista} piezas={piezas} />}
           </div>
           <div className="acciones">
             <button className="sec" onClick={() => setFormOp('editar')}>Editar datos</button>
@@ -224,7 +270,9 @@ export default function OperacionPage() {
                     <span className="dato-tipo">Piloto</span>
                     {p.piloto ? (
                       <span className="dato-piloto">
-                        <b title={p.piloto.nombre}>{p.piloto.nombre}</b>
+                        <Link className="enlace-pieza" to={`/catalogo/pilotos/${p.piloto.id}`} title={`Abrir ficha de ${p.piloto.nombre}`}>
+                          <b>{p.piloto.nombre}</b>
+                        </Link>
                         {p.piloto.telefono
                           ? <a className="telefono" href={telHref(p.piloto.telefono)}>Tel. {fmtTelefono(p.piloto.telefono)}</a>
                           : <span className="vacio">Sin teléfono</span>}
@@ -233,13 +281,26 @@ export default function OperacionPage() {
                   </div>
                   <div className="dato">
                     <span className="dato-tipo">Cabezal</span>
-                    {p.cabezal ? <span><span className="matricula">{p.cabezal.placa}</span></span> : <span className="vacio">Sin cabezal</span>}
+                    {p.cabezal ? (
+                      <span className="dato-pieza">
+                        <Link className="enlace-pieza" to={`/catalogo/cabezales/${p.cabezal.id}`} title="Abrir ficha del cabezal">
+                          <span className="matricula">{p.cabezal.placa}</span>
+                        </Link>
+                      </span>
+                    ) : <span className="vacio">Sin cabezal</span>}
                   </div>
                   <div className="dato">
                     <span className="dato-tipo">TC</span>
-                    {p.tc ? <span><span className="matricula">{p.tc.placa}</span></span> : <span className="vacio">Sin TC</span>}
+                    {p.tc ? (
+                      <span className="dato-pieza">
+                        <Link className="enlace-pieza" to={`/catalogo/tcs/${p.tc.id}`} title="Abrir ficha del TC">
+                          <span className="matricula">{p.tc.placa}</span>
+                        </Link>
+                      </span>
+                    ) : <span className="vacio">Sin TC</span>}
                   </div>
                 </div>
+                <AvisosUnidad p={p} />
                 <div className="unidad-lado">
                   <button className="chico" disabled={!!ocupado} onClick={() => vistaPrevia(a)}>Ver PDF</button>
                   <button className="sec chico" disabled={!!editando} onClick={() => setEditando(a)}>Cambiar</button>

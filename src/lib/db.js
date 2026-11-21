@@ -56,6 +56,11 @@ export async function guardarEntidad(tipo, id, valores, { idNuevo = null, fotos 
   for (const c of cfg.campos) {
     datos[c.name] = String(valores[c.name] ?? '').trim();
     if (c.requerido && !datos[c.name]) throw new Error(`Falta: ${c.label}`);
+    if (c.vencimiento) {
+      // «No aplica» borra la fecha; así no queda una fecha vieja escondida.
+      datos.venceNoAplica = !!valores.venceNoAplica;
+      if (datos.venceNoAplica) datos[c.name] = '';
+    }
   }
   if (cfg.unico === 'placa') {
     datos.placa = datos.placa.toUpperCase();
@@ -113,6 +118,21 @@ export async function duplicarOperacion(datos, asignaciones = []) {
   });
   await batch.commit();
   return opRef.id;
+}
+
+/**
+ * Deja las unidades numeradas 1, 2, 3… sin huecos (por ejemplo después de quitar una).
+ * `quitarId`: unidad que se borra en el mismo lote. Solo escribe las que cambian.
+ */
+export async function renumerarUnidades(operacionId, asignaciones, quitarId = null) {
+  const quedan = [...asignaciones].filter((a) => a.id !== quitarId).sort((a, b) => a.numero - b.numero);
+  const batch = writeBatch(db);
+  if (quitarId) batch.delete(doc(db, 'asignaciones', quitarId));
+  quedan.forEach((a, i) => {
+    if (a.numero !== i + 1) batch.update(doc(db, 'asignaciones', a.id), { numero: i + 1 });
+  });
+  batch.update(doc(db, 'operaciones', operacionId), { ultimoNumero: quedan.length });
+  await batch.commit();
 }
 
 /** Nueva unidad con número consecutivo (transacción: dos usuarios no repiten número). */

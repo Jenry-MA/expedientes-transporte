@@ -15,7 +15,10 @@ import { buscarTransporte, agregarTransporte, limpiarNombre } from '../lib/trans
 export default function EntidadForm({ tipo, id = null, inicial = {}, compacto = false, onGuardado, onCancelar }) {
   const cfg = TIPOS[tipo];
   const [valores, setValores] = useState(() =>
-    Object.fromEntries(cfg.campos.map((c) => [c.name, inicial[c.name] ?? ''])),
+    ({
+      ...Object.fromEntries(cfg.campos.map((c) => [c.name, inicial[c.name] ?? ''])),
+      venceNoAplica: !!inicial.venceNoAplica,
+    }),
   );
   const [estado, setEstado] = useState({ guardando: false, error: '', ok: false });
   // Al registrar, el id se reserva desde ya para poder subir los documentos antes de guardar.
@@ -69,7 +72,26 @@ export default function EntidadForm({ tipo, id = null, inicial = {}, compacto = 
       <div className="campos">
         {cfg.campos
           .filter((c) => !(compacto && c.multilinea))
-          .map((c) => c.transporte ? (
+          .map((c) => c.vencimiento ? (
+            <div key={c.name} className="campo">
+              <label htmlFor={`${formId}-${c.name}`}>{c.label}</label>
+              <input
+                id={`${formId}-${c.name}`}
+                type="date"
+                value={valores.venceNoAplica ? '' : valores[c.name]}
+                disabled={valores.venceNoAplica}
+                onChange={cambiar(c.name)}
+              />
+              <label className="check-linea">
+                <input
+                  type="checkbox"
+                  checked={valores.venceNoAplica}
+                  onChange={(e) => { setValores((x) => ({ ...x, venceNoAplica: e.target.checked })); setEstado((s) => ({ ...s, ok: false })); }}
+                />
+                No aplica
+              </label>
+            </div>
+          ) : c.transporte ? (
             <div key={c.name} className="campo">
               <label htmlFor={`${formId}-${c.name}`}>{c.label}{c.requerido && ' *'}</label>
               <TransporteInput
